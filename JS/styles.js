@@ -28,13 +28,13 @@
                 right: 20px;
                 width: 450px;
                 max-height: 85vh;
-                background: #2b2b2b;
-                border: 2px solid #4a9eff;
+                background: #3a3228;
+                border: 2px solid #a67c52;
                 border-radius: 8px;
                 box-shadow: 0 4px 20px rgba(0,0,0,0.5);
                 z-index: 999999;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                color: #e0e0e0;
+                color: #e8dcc8;
                 display: none;
                 flex-direction: column;
             }
@@ -44,7 +44,7 @@
             }
 
             .plantuml-header {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: linear-gradient(135deg, #8b6f47 0%, #6b5638 100%);
                 padding: 12px 15px;
                 border-radius: 6px 6px 0 0;
                 cursor: move;
@@ -88,7 +88,7 @@
                 display: flex;
                 gap: 5px;
                 margin-bottom: 15px;
-                border-bottom: 2px solid #444;
+                border-bottom: 2px solid #5a4a3a;
                 padding-bottom: 5px;
                 overflow-x: auto;
                 flex-wrap: wrap;
@@ -96,9 +96,9 @@
 
             .plantuml-tab {
                 padding: 6px 10px;
-                background: #3a3a3a;
+                background: #4a3f35;
                 border: none;
-                color: #b0b0b0;
+                color: #c4b5a0;
                 cursor: pointer;
                 border-radius: 4px 4px 0 0;
                 font-size: 11px;
@@ -108,13 +108,13 @@
             }
 
             .plantuml-tab:hover {
-                background: #4a4a4a;
-                color: #e0e0e0;
+                background: #5a4f45;
+                color: #e8dcc8;
             }
 
             .plantuml-tab.active {
-                background: #4a9eff;
-                color: white;
+                background: #a67c52;
+                color: #fff8e7;
                 font-weight: 600;
             }
 
@@ -131,35 +131,35 @@
             }
 
             .plantuml-section h4 {
-                color: #4a9eff;
+                color: #d4a574;
                 font-size: 14px;
                 margin: 0 0 10px 0;
                 padding-bottom: 5px;
-                border-bottom: 1px solid #444;
+                border-bottom: 1px solid #5a4a3a;
             }
 
             .plantuml-item {
-                background: #3a3a3a;
+                background: #4a3f35;
                 padding: 10px;
                 margin-bottom: 8px;
                 border-radius: 4px;
-                border-left: 3px solid #4a9eff;
+                border-left: 3px solid #a67c52;
             }
 
             .plantuml-item-title {
                 font-weight: 600;
-                color: #4a9eff;
+                color: #d4a574;
                 margin-bottom: 5px;
                 font-size: 13px;
             }
 
             .plantuml-code {
-                background: #1e1e1e;
+                background: #2a2520;
                 padding: 8px;
                 border-radius: 4px;
                 font-family: 'Courier New', monospace;
                 font-size: 11px;
-                color: #9cdcfe;
+                color: #c9b896;
                 overflow-x: auto;
                 white-space: pre;
                 margin: 5px 0;
@@ -167,14 +167,14 @@
 
             .plantuml-description {
                 font-size: 11px;
-                color: #b0b0b0;
+                color: #b8a890;
                 margin-top: 5px;
             }
 
             .plantuml-copy-btn {
-                background: #4a9eff;
+                background: #a67c52;
                 border: none;
-                color: white;
+                color: #fff8e7;
                 padding: 4px 10px;
                 border-radius: 3px;
                 cursor: pointer;
@@ -184,16 +184,16 @@
             }
 
             .plantuml-copy-btn:hover {
-                background: #3a8eef;
+                background: #8b6f47;
             }
 
             .plantuml-toggle-btn {
                 position: fixed;
                 top: 20px;
                 right: 20px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                border: 2px solid #4a9eff;
-                color: white;
+                background: linear-gradient(135deg, #8b6f47 0%, #6b5638 100%);
+                border: 2px solid #a67c52;
+                color: #fff8e7;
                 padding: 10px 15px;
                 border-radius: 6px;
                 cursor: pointer;
@@ -212,21 +212,21 @@
                 width: 100%;
                 padding: 8px;
                 margin-bottom: 15px;
-                background: #3a3a3a;
-                border: 1px solid #555;
+                background: #4a3f35;
+                border: 1px solid #6b5638;
                 border-radius: 4px;
-                color: #e0e0e0;
+                color: #e8dcc8;
                 font-size: 12px;
             }
 
             .plantuml-search:focus {
                 outline: none;
-                border-color: #4a9eff;
+                border-color: #a67c52;
             }
 
             .plantuml-highlight {
-                background-color: #ffd700;
-                color: #000;
+                background-color: #d4a574;
+                color: #2a2520;
                 padding: 2px 4px;
                 border-radius: 2px;
             }
@@ -243,15 +243,15 @@
                 gap: 5px;
                 flex-wrap: wrap;
                 padding: 8px;
-                background: #3a3a3a;
+                background: #4a3f35;
                 border-radius: 4px;
             }
 
             .plantuml-editor-btn {
                 padding: 5px 10px;
-                background: #4a9eff;
+                background: #a67c52;
                 border: none;
-                color: white;
+                color: #fff8e7;
                 border-radius: 4px;
                 cursor: pointer;
                 font-size: 11px;
@@ -259,24 +259,24 @@
             }
 
             .plantuml-editor-btn:hover {
-                background: #3a8eef;
+                background: #8b6f47;
             }
 
             .plantuml-editor-btn.secondary {
-                background: #666;
+                background: #6b5638;
             }
 
             .plantuml-editor-btn.secondary:hover {
-                background: #777;
+                background: #7a6547;
             }
 
             .plantuml-editor-btn.active {
-                background: #27ae60;
+                background: #6b8e23;
             }
 
             .plantuml-canvas-container {
-                background: #1e1e1e;
-                border: 2px solid #444;
+                background: #2a2520;
+                border: 2px solid #5a4a3a;
                 border-radius: 4px;
                 min-height: 250px;
                 position: relative;
@@ -291,21 +291,21 @@
 
             .plantuml-node {
                 position: absolute;
-                background: #4a9eff;
-                color: white;
+                background: #a67c52;
+                color: #fff8e7;
                 padding: 8px 12px;
                 border-radius: 6px;
                 cursor: move;
                 user-select: none;
                 min-width: 80px;
                 text-align: center;
-                border: 2px solid #3a8eef;
+                border: 2px solid #8b6f47;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             }
 
             .plantuml-node.actor {
-                background: #9b59b6;
-                border-color: #8e44ad;
+                background: #9b7653;
+                border-color: #7a5f42;
                 border-radius: 50%;
                 width: 50px;
                 height: 50px;
@@ -317,25 +317,25 @@
             }
 
             .plantuml-node.class {
-                background: #27ae60;
-                border-color: #229954;
+                background: #6b8e23;
+                border-color: #556b1f;
                 border-radius: 4px;
             }
 
             .plantuml-node.component {
-                background: #e67e22;
-                border-color: #d35400;
+                background: #cd853f;
+                border-color: #a0652f;
             }
 
             .plantuml-node.database {
-                background: #c0392b;
-                border-color: #a93226;
+                background: #8b4513;
+                border-color: #6b3410;
                 border-radius: 4px 4px 15px 15px;
             }
 
             .plantuml-node.selected {
-                border-color: #ffd700;
-                box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+                border-color: #d4a574;
+                box-shadow: 0 0 10px rgba(212, 165, 116, 0.5);
             }
 
             .plantuml-node-label {
@@ -348,8 +348,8 @@
                 position: absolute;
                 top: -8px;
                 right: -8px;
-                background: #e74c3c;
-                color: white;
+                background: #a0522d;
+                color: #fff8e7;
                 border: none;
                 border-radius: 50%;
                 width: 18px;
@@ -370,12 +370,12 @@
             }
 
             .plantuml-output-code {
-                background: #1e1e1e;
+                background: #2a2520;
                 padding: 10px;
                 border-radius: 4px;
                 font-family: 'Courier New', monospace;
                 font-size: 11px;
-                color: #9cdcfe;
+                color: #c9b896;
                 max-height: 150px;
                 overflow-y: auto;
                 white-space: pre;
@@ -386,22 +386,22 @@
                 gap: 8px;
                 align-items: center;
                 padding: 8px;
-                background: #3a3a3a;
+                background: #4a3f35;
                 border-radius: 4px;
                 flex-wrap: wrap;
             }
 
             .plantuml-editor-label {
-                color: #b0b0b0;
+                color: #b8a890;
                 font-size: 11px;
             }
 
             .plantuml-editor-select {
                 padding: 4px 8px;
-                background: #2b2b2b;
-                border: 1px solid #555;
+                background: #3a3228;
+                border: 1px solid #6b5638;
                 border-radius: 4px;
-                color: #e0e0e0;
+                color: #e8dcc8;
                 font-size: 11px;
                 cursor: pointer;
             }
@@ -412,16 +412,16 @@
             }
 
             ::-webkit-scrollbar-track {
-                background: #2b2b2b;
+                background: #3a3228;
             }
 
             ::-webkit-scrollbar-thumb {
-                background: #555;
+                background: #6b5638;
                 border-radius: 4px;
             }
 
             ::-webkit-scrollbar-thumb:hover {
-                background: #666;
+                background: #7a6547;
             }
         `;
 
