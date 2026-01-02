@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         PlantUML Helper - Reference Guide & GUI Aid (Modular)
 // @namespace    http://tampermonkey.net/
-// @version      2.1.0
-// @description  Comprehensive reference guide and visual GUI editor for PlantUML diagrams with syntax help, examples, and drag-and-drop diagram builder (Modularized with Earth Tone Theme)
+// @version      2.2.0
+// @description  Comprehensive reference guide and visual GUI editor for PlantUML diagrams with syntax help, examples, and drag-and-drop diagram builder (Modularized with Earth Tone Theme + Save/Load)
 // @author       RynAgain
 // @match        *://*/*
 // @grant        GM_addStyle
@@ -21,7 +21,7 @@
     'use strict';
 
     console.log('PlantUML Helper (Modular) - Main script started');
-    console.log('Version: 2.1.0 - Earth Tone Theme');
+    console.log('Version: 2.2.0 - Earth Tone Theme + Save/Load + Fixed Syntax');
 
     // All modules are loaded via @require directives and self-initialize
     // The loading order is:

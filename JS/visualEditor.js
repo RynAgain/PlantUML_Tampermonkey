@@ -43,6 +43,8 @@
                         <option value="usecase">Use Case</option>
                         <option value="component">Component</option>
                     </select>
+                    <button class="plantuml-editor-btn secondary" id="save-diagram" style="margin-left: auto;">💾 Save</button>
+                    <button class="plantuml-editor-btn secondary" id="load-diagram">📂 Load</button>
                 </div>
 
                 <div class="plantuml-editor-toolbar">
@@ -104,10 +106,17 @@
         // Connection mode
         document.getElementById('connect-mode')?.addEventListener('click', toggleConnectionMode);
 
+        // Save/Load
+        document.getElementById('save-diagram')?.addEventListener('click', saveDiagram);
+        document.getElementById('load-diagram')?.addEventListener('click', loadDiagram);
+
         // Diagram type change
         document.getElementById('diagram-type')?.addEventListener('change', (e) => {
             editorState.diagramType = e.target.value;
         });
+
+        // Try to load saved diagram
+        tryLoadSavedDiagram();
     }
 
     /**
@@ -339,8 +348,8 @@
     /**
      * Clear the canvas
      */
-    function clearCanvas() {
-        if (confirm('Clear all nodes and connections?')) {
+    function clearCanvas(skipConfirm = false) {
+        if (skipConfirm || confirm('Clear all nodes and connections?')) {
             editorState.nodes = [];
             editorState.connections = [];
             editorState.selectedNode = null;
@@ -356,7 +365,10 @@
                 svg.innerHTML = '';
             }
 
-            document.getElementById('output-code').textContent = 'Click "Generate Code" to create PlantUML from your diagram...';
+            const outputCode = document.getElementById('output-code');
+            if (outputCode) {
+                outputCode.textContent = 'Click "Generate Code" to create PlantUML from your diagram...';
+            }
         }
     }
 
@@ -408,16 +420,19 @@
                 console.error('[PlantUML Visual Editor] Label element not found for node:', node.id);
                 return;
             }
-            const label = labelElement.textContent.trim();
+            const label = sanitizePlantUMLLabel(labelElement.textContent.trim());
             const type = node.type === 'actor' ? 'actor' : 'participant';
-            code += `${type} "${label}" as ${node.id}\n`;
+            const alias = sanitizePlantUMLAlias(node.id);
+            code += `${type} "${label}" as ${alias}\n`;
         });
 
         code += '\n';
 
         // Add interactions
         editorState.connections.forEach(conn => {
-            code += `${conn.from} -> ${conn.to}: Message\n`;
+            const fromAlias = sanitizePlantUMLAlias(conn.from);
+            const toAlias = sanitizePlantUMLAlias(conn.to);
+            code += `${fromAlias} -> ${toAlias}: Message\n`;
         });
 
         return code;
@@ -437,7 +452,7 @@
                 console.error('[PlantUML Visual Editor] Label element not found for node:', node.id);
                 return;
             }
-            const label = labelElement.textContent.trim();
+            const label = sanitizePlantUMLClassName(labelElement.textContent.trim());
             code += `class ${label} {\n`;
             code += `  +field1\n`;
             code += `  +method1()\n`;
@@ -452,8 +467,8 @@
                 console.error('[PlantUML Visual Editor] Label element not found for connection');
                 return;
             }
-            const fromLabel = fromLabelElement.textContent.trim();
-            const toLabel = toLabelElement.textContent.trim();
+            const fromLabel = sanitizePlantUMLClassName(fromLabelElement.textContent.trim());
+            const toLabel = sanitizePlantUMLClassName(toLabelElement.textContent.trim());
             code += `${fromLabel} --> ${toLabel}\n`;
         });
 
@@ -474,11 +489,12 @@
                 console.error('[PlantUML Visual Editor] Label element not found for node:', node.id);
                 return;
             }
-            const label = labelElement.textContent.trim();
+            const label = sanitizePlantUMLLabel(labelElement.textContent.trim());
+            const alias = sanitizePlantUMLAlias(node.id);
             if (node.type === 'actor') {
-                code += `actor "${label}" as ${node.id}\n`;
+                code += `actor "${label}" as ${alias}\n`;
             } else {
-                code += `usecase "${label}" as ${node.id}\n`;
+                code += `usecase "${label}" as ${alias}\n`;
             }
         });
 
@@ -486,7 +502,9 @@
 
         // Add relationships
         editorState.connections.forEach(conn => {
-            code += `${conn.from} --> ${conn.to}\n`;
+            const fromAlias = sanitizePlantUMLAlias(conn.from);
+            const toAlias = sanitizePlantUMLAlias(conn.to);
+            code += `${fromAlias} --> ${toAlias}\n`;
         });
 
         return code;
@@ -506,19 +524,52 @@
                 console.error('[PlantUML Visual Editor] Label element not found for node:', node.id);
                 return;
             }
-            const label = labelElement.textContent.trim();
+            const label = sanitizePlantUMLLabel(labelElement.textContent.trim());
+            const alias = sanitizePlantUMLAlias(node.id);
             const type = node.type === 'database' ? 'database' : 'component';
-            code += `${type} "${label}" as ${node.id}\n`;
+            code += `${type} "${label}" as ${alias}\n`;
         });
 
         code += '\n';
 
         // Add connections
         editorState.connections.forEach(conn => {
-            code += `${conn.from} --> ${conn.to}\n`;
+            const fromAlias = sanitizePlantUMLAlias(conn.from);
+            const toAlias = sanitizePlantUMLAlias(conn.to);
+            code += `${fromAlias} --> ${toAlias}\n`;
         });
 
         return code;
+    }
+
+    /**
+     * Sanitize label for PlantUML (for display names in quotes)
+     * @param {string} label - Label to sanitize
+     * @returns {string} Sanitized label
+     */
+    function sanitizePlantUMLLabel(label) {
+        // Escape quotes and backslashes
+        return label.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    }
+
+    /**
+     * Sanitize alias for PlantUML (for identifiers without quotes)
+     * @param {string} alias - Alias to sanitize
+     * @returns {string} Sanitized alias
+     */
+    function sanitizePlantUMLAlias(alias) {
+        // Replace invalid characters with underscores
+        return alias.replace(/[^a-zA-Z0-9_]/g, '_');
+    }
+
+    /**
+     * Sanitize class name for PlantUML (no quotes, no spaces)
+     * @param {string} className - Class name to sanitize
+     * @returns {string} Sanitized class name
+     */
+    function sanitizePlantUMLClassName(className) {
+        // Remove spaces and special characters, keep only alphanumeric and underscores
+        return className.replace(/[^a-zA-Z0-9_]/g, '');
     }
 
     /**
@@ -536,6 +587,177 @@
                     btn.textContent = originalText;
                 }, 2000);
             }
+        }
+    }
+
+    /**
+     * Save diagram to localStorage
+     */
+    function saveDiagram() {
+        try {
+            const diagramData = {
+                diagramType: editorState.diagramType,
+                nodeCounter: editorState.nodeCounter,
+                nodes: editorState.nodes.map(node => ({
+                    id: node.id,
+                    type: node.type,
+                    label: node.element.querySelector('.plantuml-node-label').textContent,
+                    left: node.element.style.left,
+                    top: node.element.style.top
+                })),
+                connections: editorState.connections.map(conn => ({
+                    from: conn.from,
+                    to: conn.to
+                }))
+            };
+
+            if (typeof GM_setValue !== 'undefined') {
+                GM_setValue('plantUMLDiagram', JSON.stringify(diagramData));
+            } else {
+                localStorage.setItem('plantUMLDiagram', JSON.stringify(diagramData));
+            }
+
+            const btn = document.getElementById('save-diagram');
+            const originalText = btn.textContent;
+            btn.textContent = '✓ Saved!';
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 2000);
+
+            console.log('[PlantUML Visual Editor] Diagram saved successfully');
+        } catch (error) {
+            console.error('[PlantUML Visual Editor] Error saving diagram:', error);
+            alert('Error saving diagram: ' + error.message);
+        }
+    }
+
+    /**
+     * Load diagram from localStorage
+     */
+    function loadDiagram() {
+        try {
+            let diagramDataStr;
+            if (typeof GM_getValue !== 'undefined') {
+                diagramDataStr = GM_getValue('plantUMLDiagram', null);
+            } else {
+                diagramDataStr = localStorage.getItem('plantUMLDiagram');
+            }
+
+            if (!diagramDataStr) {
+                alert('No saved diagram found');
+                return;
+            }
+
+            const diagramData = JSON.parse(diagramDataStr);
+
+            // Clear current diagram
+            clearCanvas(true); // Skip confirmation
+
+            // Restore state
+            editorState.diagramType = diagramData.diagramType;
+            editorState.nodeCounter = diagramData.nodeCounter;
+
+            // Update diagram type selector
+            const typeSelect = document.getElementById('diagram-type');
+            if (typeSelect) {
+                typeSelect.value = diagramData.diagramType;
+            }
+
+            // Recreate nodes
+            diagramData.nodes.forEach(nodeData => {
+                const canvas = document.getElementById('plantuml-canvas');
+                if (!canvas) return;
+
+                const node = document.createElement('div');
+                node.className = `plantuml-node ${nodeData.type}`;
+                node.dataset.id = nodeData.id;
+                node.dataset.type = nodeData.type;
+
+                const label = document.createElement('div');
+                label.className = 'plantuml-node-label';
+                label.contentEditable = true;
+                label.textContent = nodeData.label;
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'plantuml-node-delete';
+                deleteBtn.textContent = '×';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    removeNode(node);
+                });
+
+                node.appendChild(label);
+                node.appendChild(deleteBtn);
+                node.style.left = nodeData.left;
+                node.style.top = nodeData.top;
+
+                canvas.appendChild(node);
+                makeDraggableNode(node);
+
+                node.addEventListener('click', (e) => {
+                    if (editorState.connectionMode) {
+                        handleNodeConnectionClick(node);
+                    } else {
+                        selectNode(node);
+                    }
+                });
+
+                editorState.nodes.push({
+                    id: node.dataset.id,
+                    type: nodeData.type,
+                    element: node
+                });
+            });
+
+            // Recreate connections
+            diagramData.connections.forEach(connData => {
+                const fromNode = editorState.nodes.find(n => n.id === connData.from);
+                const toNode = editorState.nodes.find(n => n.id === connData.to);
+
+                if (fromNode && toNode) {
+                    editorState.connections.push({
+                        from: connData.from,
+                        to: connData.to,
+                        fromElement: fromNode.element,
+                        toElement: toNode.element
+                    });
+                }
+            });
+
+            updateConnections();
+
+            const btn = document.getElementById('load-diagram');
+            const originalText = btn.textContent;
+            btn.textContent = '✓ Loaded!';
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 2000);
+
+            console.log('[PlantUML Visual Editor] Diagram loaded successfully');
+        } catch (error) {
+            console.error('[PlantUML Visual Editor] Error loading diagram:', error);
+            alert('Error loading diagram: ' + error.message);
+        }
+    }
+
+    /**
+     * Try to load saved diagram on initialization
+     */
+    function tryLoadSavedDiagram() {
+        // Don't auto-load, just check if there's a saved diagram
+        try {
+            let diagramDataStr;
+            if (typeof GM_getValue !== 'undefined') {
+                diagramDataStr = GM_getValue('plantUMLDiagram', null);
+            } else {
+                diagramDataStr = localStorage.getItem('plantUMLDiagram');
+            }
+
+            if (diagramDataStr) {
+                console.log('[PlantUML Visual Editor] Saved diagram available - click Load to restore');
+            }
+        } catch (error) {
+            console.error('[PlantUML Visual Editor] Error checking for saved diagram:', error);
         }
     }
 
