@@ -364,6 +364,11 @@
      * Generate PlantUML code from the visual diagram
      */
     function generatePlantUMLCode() {
+        console.log('[PlantUML Visual Editor] Generating code...');
+        console.log('[PlantUML Visual Editor] Nodes:', editorState.nodes.length);
+        console.log('[PlantUML Visual Editor] Connections:', editorState.connections.length);
+        console.log('[PlantUML Visual Editor] Diagram type:', editorState.diagramType);
+        
         const type = editorState.diagramType;
         let code = '@startuml\n';
 
@@ -379,7 +384,14 @@
 
         code += '@enduml';
 
-        document.getElementById('output-code').textContent = code;
+        console.log('[PlantUML Visual Editor] Generated code:', code);
+        
+        const outputElement = document.getElementById('output-code');
+        if (outputElement) {
+            outputElement.textContent = code;
+        } else {
+            console.error('[PlantUML Visual Editor] Output code element not found!');
+        }
     }
 
     /**
@@ -391,7 +403,12 @@
 
         // Add participants
         editorState.nodes.forEach(node => {
-            const label = node.element.querySelector('.plantuml-node-label').textContent;
+            const labelElement = node.element.querySelector('.plantuml-node-label');
+            if (!labelElement) {
+                console.error('[PlantUML Visual Editor] Label element not found for node:', node.id);
+                return;
+            }
+            const label = labelElement.textContent.trim();
             const type = node.type === 'actor' ? 'actor' : 'participant';
             code += `${type} "${label}" as ${node.id}\n`;
         });
@@ -415,7 +432,12 @@
 
         // Add classes
         editorState.nodes.forEach(node => {
-            const label = node.element.querySelector('.plantuml-node-label').textContent;
+            const labelElement = node.element.querySelector('.plantuml-node-label');
+            if (!labelElement) {
+                console.error('[PlantUML Visual Editor] Label element not found for node:', node.id);
+                return;
+            }
+            const label = labelElement.textContent.trim();
             code += `class ${label} {\n`;
             code += `  +field1\n`;
             code += `  +method1()\n`;
@@ -424,8 +446,14 @@
 
         // Add relationships
         editorState.connections.forEach(conn => {
-            const fromLabel = conn.fromElement.querySelector('.plantuml-node-label').textContent;
-            const toLabel = conn.toElement.querySelector('.plantuml-node-label').textContent;
+            const fromLabelElement = conn.fromElement.querySelector('.plantuml-node-label');
+            const toLabelElement = conn.toElement.querySelector('.plantuml-node-label');
+            if (!fromLabelElement || !toLabelElement) {
+                console.error('[PlantUML Visual Editor] Label element not found for connection');
+                return;
+            }
+            const fromLabel = fromLabelElement.textContent.trim();
+            const toLabel = toLabelElement.textContent.trim();
             code += `${fromLabel} --> ${toLabel}\n`;
         });
 
@@ -441,7 +469,12 @@
 
         // Add actors and use cases
         editorState.nodes.forEach(node => {
-            const label = node.element.querySelector('.plantuml-node-label').textContent;
+            const labelElement = node.element.querySelector('.plantuml-node-label');
+            if (!labelElement) {
+                console.error('[PlantUML Visual Editor] Label element not found for node:', node.id);
+                return;
+            }
+            const label = labelElement.textContent.trim();
             if (node.type === 'actor') {
                 code += `actor "${label}" as ${node.id}\n`;
             } else {
@@ -468,7 +501,12 @@
 
         // Add components
         editorState.nodes.forEach(node => {
-            const label = node.element.querySelector('.plantuml-node-label').textContent;
+            const labelElement = node.element.querySelector('.plantuml-node-label');
+            if (!labelElement) {
+                console.error('[PlantUML Visual Editor] Label element not found for node:', node.id);
+                return;
+            }
+            const label = labelElement.textContent.trim();
             const type = node.type === 'database' ? 'database' : 'component';
             code += `${type} "${label}" as ${node.id}\n`;
         });
