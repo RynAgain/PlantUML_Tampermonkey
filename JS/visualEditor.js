@@ -387,7 +387,28 @@
      */
     function updateConnections() {
         const svg = document.getElementById('connection-svg');
-        if (!svg) return;
+        const canvas = document.getElementById('plantuml-canvas');
+        if (!svg || !canvas) return;
+
+        // Calculate the required size based on all nodes
+        let maxX = 250, maxY = 250;
+        editorState.nodes.forEach(node => {
+            const rect = node.element.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            const right = rect.left - canvasRect.left + rect.width + 20;
+            const bottom = rect.top - canvasRect.top + rect.height + 20;
+            maxX = Math.max(maxX, right);
+            maxY = Math.max(maxY, bottom);
+        });
+
+        // Set SVG size to cover all content
+        svg.style.width = maxX + 'px';
+        svg.style.height = maxY + 'px';
+        svg.setAttribute('viewBox', `0 0 ${maxX} ${maxY}`);
+        
+        // Also ensure canvas is big enough
+        canvas.style.minWidth = maxX + 'px';
+        canvas.style.minHeight = maxY + 'px';
 
         svg.innerHTML = '';
 

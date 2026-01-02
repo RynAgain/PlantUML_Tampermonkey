@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PlantUML Helper - Reference Guide & GUI Aid (Modular)
 // @namespace    http://tampermonkey.net/
-// @version      3.1.0
+// @version      3.1.1
 // @description  Visual diagram editor with full page mode, grid snap, PNG export, arrow direction control, connection editing, and node ordering - now a standalone diagramming tool!
 // @author       RynAgain
 // @match        *://*/*
@@ -21,7 +21,7 @@
     'use strict';
 
     console.log('PlantUML Helper (Modular) - Main script started');
-    console.log('Version: 3.1.0 - Edge-to-edge arrows + Click-to-edit connections + Swap direction');
+    console.log('Version: 3.1.1 - Fixed SVG sizing for arrow visibility');
 
     // All modules are loaded via @require directives and self-initialize
     // The loading order is:

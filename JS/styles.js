@@ -299,7 +299,7 @@
                 border-radius: 4px;
                 min-height: 250px;
                 position: relative;
-                overflow: auto;
+                overflow: visible;
             }
 
             .plantuml-canvas {
@@ -315,8 +315,10 @@
                 left: 0;
                 width: 100%;
                 height: 100%;
-                z-index: 10;
+                min-height: 250px;
+                z-index: 100;
                 pointer-events: none;
+                overflow: visible;
             }
 
             #connection-svg line {
@@ -326,7 +328,7 @@
 
             #connection-svg line:hover {
                 stroke-width: 5;
-                filter: drop-shadow(0 0 4px #4a9eff);
+                filter: drop-shadow(0 0 4px #00CAFF);
             }
 
             .plantuml-node {
@@ -341,7 +343,7 @@
                 text-align: center;
                 border: 2px solid #4A5F7F;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                z-index: 5;
+                z-index: 50;
             }
 
             .plantuml-node.actor {
