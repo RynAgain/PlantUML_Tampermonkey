@@ -27,16 +27,22 @@
                 top: 20px;
                 right: 20px;
                 width: 450px;
+                min-width: 300px;
+                max-width: 90vw;
+                height: 600px;
+                min-height: 400px;
                 max-height: 85vh;
-                background: #3a3228;
-                border: 2px solid #a67c52;
+                background: #232F3E;
+                border: 2px solid #35485E;
                 border-radius: 8px;
                 box-shadow: 0 4px 20px rgba(0,0,0,0.5);
                 z-index: 999999;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                color: #e8dcc8;
+                color: #FAFAFA;
                 display: none;
                 flex-direction: column;
+                resize: both;
+                overflow: hidden;
             }
 
             #plantuml-helper-panel.visible {
@@ -44,7 +50,7 @@
             }
 
             .plantuml-header {
-                background: linear-gradient(135deg, #8b6f47 0%, #6b5638 100%);
+                background: linear-gradient(135deg, #35485E 0%, #232F3E 100%);
                 padding: 12px 15px;
                 border-radius: 6px 6px 0 0;
                 cursor: move;
@@ -81,14 +87,26 @@
             .plantuml-content {
                 padding: 15px;
                 overflow-y: auto;
-                max-height: calc(85vh - 100px);
+                flex: 1;
+                min-height: 0;
+            }
+
+            #plantuml-helper-panel::after {
+                content: '⋰';
+                position: absolute;
+                bottom: 2px;
+                right: 2px;
+                font-size: 16px;
+                color: #35485E;
+                pointer-events: none;
+                line-height: 1;
             }
 
             .plantuml-tabs {
                 display: flex;
                 gap: 5px;
                 margin-bottom: 15px;
-                border-bottom: 2px solid #5a4a3a;
+                border-bottom: 2px solid #35485E;
                 padding-bottom: 5px;
                 overflow-x: auto;
                 flex-wrap: wrap;
@@ -96,9 +114,9 @@
 
             .plantuml-tab {
                 padding: 6px 10px;
-                background: #4a3f35;
+                background: #1E2222;
                 border: none;
-                color: #c4b5a0;
+                color: #DADADA;
                 cursor: pointer;
                 border-radius: 4px 4px 0 0;
                 font-size: 11px;
@@ -108,13 +126,13 @@
             }
 
             .plantuml-tab:hover {
-                background: #5a4f45;
-                color: #e8dcc8;
+                background: #35485E;
+                color: #FAFAFA;
             }
 
             .plantuml-tab.active {
-                background: #a67c52;
-                color: #fff8e7;
+                background: #35485E;
+                color: #FFFFFF;
                 font-weight: 600;
             }
 
@@ -131,35 +149,35 @@
             }
 
             .plantuml-section h4 {
-                color: #d4a574;
+                color: #FAFAFA;
                 font-size: 14px;
                 margin: 0 0 10px 0;
                 padding-bottom: 5px;
-                border-bottom: 1px solid #5a4a3a;
+                border-bottom: 1px solid #35485E;
             }
 
             .plantuml-item {
-                background: #4a3f35;
+                background: #1E2222;
                 padding: 10px;
                 margin-bottom: 8px;
                 border-radius: 4px;
-                border-left: 3px solid #a67c52;
+                border-left: 3px solid #35485E;
             }
 
             .plantuml-item-title {
                 font-weight: 600;
-                color: #d4a574;
+                color: #FAFAFA;
                 margin-bottom: 5px;
                 font-size: 13px;
             }
 
             .plantuml-code {
-                background: #2a2520;
+                background: #0F0F0F;
                 padding: 8px;
                 border-radius: 4px;
                 font-family: 'Courier New', monospace;
                 font-size: 11px;
-                color: #c9b896;
+                color: #DADADA;
                 overflow-x: auto;
                 white-space: pre;
                 margin: 5px 0;
@@ -167,14 +185,14 @@
 
             .plantuml-description {
                 font-size: 11px;
-                color: #b8a890;
+                color: #DADADA;
                 margin-top: 5px;
             }
 
             .plantuml-copy-btn {
-                background: #a67c52;
+                background: #35485E;
                 border: none;
-                color: #fff8e7;
+                color: #FFFFFF;
                 padding: 4px 10px;
                 border-radius: 3px;
                 cursor: pointer;
@@ -184,16 +202,16 @@
             }
 
             .plantuml-copy-btn:hover {
-                background: #8b6f47;
+                background: #4A5F7F;
             }
 
             .plantuml-toggle-btn {
                 position: fixed;
                 top: 20px;
                 right: 20px;
-                background: linear-gradient(135deg, #8b6f47 0%, #6b5638 100%);
-                border: 2px solid #a67c52;
-                color: #fff8e7;
+                background: linear-gradient(135deg, #35485E 0%, #232F3E 100%);
+                border: 2px solid #35485E;
+                color: #FFFFFF;
                 padding: 10px 15px;
                 border-radius: 6px;
                 cursor: pointer;
@@ -212,21 +230,21 @@
                 width: 100%;
                 padding: 8px;
                 margin-bottom: 15px;
-                background: #4a3f35;
-                border: 1px solid #6b5638;
+                background: #1E2222;
+                border: 1px solid #35485E;
                 border-radius: 4px;
-                color: #e8dcc8;
+                color: #FAFAFA;
                 font-size: 12px;
             }
 
             .plantuml-search:focus {
                 outline: none;
-                border-color: #a67c52;
+                border-color: #35485E;
             }
 
             .plantuml-highlight {
-                background-color: #d4a574;
-                color: #2a2520;
+                background-color: #FAFAFA;
+                color: #232F3E;
                 padding: 2px 4px;
                 border-radius: 2px;
             }
@@ -243,15 +261,15 @@
                 gap: 5px;
                 flex-wrap: wrap;
                 padding: 8px;
-                background: #4a3f35;
+                background: #1E2222;
                 border-radius: 4px;
             }
 
             .plantuml-editor-btn {
                 padding: 5px 10px;
-                background: #a67c52;
+                background: #35485E;
                 border: none;
-                color: #fff8e7;
+                color: #FFFFFF;
                 border-radius: 4px;
                 cursor: pointer;
                 font-size: 11px;
@@ -259,24 +277,25 @@
             }
 
             .plantuml-editor-btn:hover {
-                background: #8b6f47;
+                background: #4A5F7F;
             }
 
             .plantuml-editor-btn.secondary {
-                background: #6b5638;
+                background: #1E2222;
+                border: 1px solid #35485E;
             }
 
             .plantuml-editor-btn.secondary:hover {
-                background: #7a6547;
+                background: #35485E;
             }
 
             .plantuml-editor-btn.active {
-                background: #6b8e23;
+                background: #34581B;
             }
 
             .plantuml-canvas-container {
-                background: #2a2520;
-                border: 2px solid #5a4a3a;
+                background: #0F0F0F;
+                border: 2px solid #35485E;
                 border-radius: 4px;
                 min-height: 250px;
                 position: relative;
@@ -291,21 +310,21 @@
 
             .plantuml-node {
                 position: absolute;
-                background: #a67c52;
-                color: #fff8e7;
+                background: #35485E;
+                color: #FFFFFF;
                 padding: 8px 12px;
                 border-radius: 6px;
                 cursor: move;
                 user-select: none;
                 min-width: 80px;
                 text-align: center;
-                border: 2px solid #8b6f47;
+                border: 2px solid #4A5F7F;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             }
 
             .plantuml-node.actor {
-                background: #9b7653;
-                border-color: #7a5f42;
+                background: #3E3F68;
+                border-color: #5A5B8C;
                 border-radius: 50%;
                 width: 50px;
                 height: 50px;
@@ -317,25 +336,26 @@
             }
 
             .plantuml-node.class {
-                background: #6b8e23;
-                border-color: #556b1f;
+                background: #34581B;
+                border-color: #4A7A28;
                 border-radius: 4px;
             }
 
             .plantuml-node.component {
-                background: #cd853f;
-                border-color: #a0652f;
+                background: #0A655E;
+                border-color: #0E8A81;
+                border-radius: 4px;
             }
 
             .plantuml-node.database {
-                background: #8b4513;
-                border-color: #6b3410;
+                background: #65151E;
+                border-color: #8A1D28;
                 border-radius: 4px 4px 15px 15px;
             }
 
             .plantuml-node.selected {
-                border-color: #d4a574;
-                box-shadow: 0 0 10px rgba(212, 165, 116, 0.5);
+                border-color: #FAFAFA;
+                box-shadow: 0 0 10px rgba(250, 250, 250, 0.5);
             }
 
             .plantuml-node-label {
@@ -348,8 +368,8 @@
                 position: absolute;
                 top: -8px;
                 right: -8px;
-                background: #a0522d;
-                color: #fff8e7;
+                background: #65151E;
+                color: #FFFFFF;
                 border: none;
                 border-radius: 50%;
                 width: 18px;
@@ -370,12 +390,12 @@
             }
 
             .plantuml-output-code {
-                background: #2a2520;
+                background: #0F0F0F;
                 padding: 10px;
                 border-radius: 4px;
                 font-family: 'Courier New', monospace;
                 font-size: 11px;
-                color: #c9b896;
+                color: #DADADA;
                 max-height: 150px;
                 overflow-y: auto;
                 white-space: pre;
@@ -386,22 +406,22 @@
                 gap: 8px;
                 align-items: center;
                 padding: 8px;
-                background: #4a3f35;
+                background: #1E2222;
                 border-radius: 4px;
                 flex-wrap: wrap;
             }
 
             .plantuml-editor-label {
-                color: #b8a890;
+                color: #DADADA;
                 font-size: 11px;
             }
 
             .plantuml-editor-select {
                 padding: 4px 8px;
-                background: #3a3228;
-                border: 1px solid #6b5638;
+                background: #232F3E;
+                border: 1px solid #35485E;
                 border-radius: 4px;
-                color: #e8dcc8;
+                color: #FAFAFA;
                 font-size: 11px;
                 cursor: pointer;
             }
@@ -412,16 +432,16 @@
             }
 
             ::-webkit-scrollbar-track {
-                background: #3a3228;
+                background: #232F3E;
             }
 
             ::-webkit-scrollbar-thumb {
-                background: #6b5638;
+                background: #35485E;
                 border-radius: 4px;
             }
 
             ::-webkit-scrollbar-thumb:hover {
-                background: #7a6547;
+                background: #4A5F7F;
             }
         `;
 
