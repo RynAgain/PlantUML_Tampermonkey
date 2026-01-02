@@ -14,7 +14,8 @@
         nodeCounter: 0,
         diagramType: 'sequence',
         connectionMode: false,
-        connectionStart: null
+        connectionStart: null,
+        currentArrowType: '->'  // Default arrow type
     };
 
     // Make editor functions globally accessible
@@ -55,6 +56,21 @@
                     <button class="plantuml-editor-btn" id="add-database">+ DB</button>
                     <button class="plantuml-editor-btn secondary" id="connect-mode">🔗 Connect</button>
                     <button class="plantuml-editor-btn secondary" id="clear-canvas">🗑️ Clear</button>
+                </div>
+
+                <div class="plantuml-editor-controls">
+                    <label class="plantuml-editor-label">Arrow Type:</label>
+                    <select class="plantuml-editor-select" id="arrow-type">
+                        <option value="->">→ Solid Right (->)</option>
+                        <option value="<-">← Solid Left (<-)</option>
+                        <option value="<->">↔ Solid Both (<->)</option>
+                        <option value="-->">⇢ Dashed Right (-->)</option>
+                        <option value="<--">⇠ Dashed Left (<--)</option>
+                        <option value="<-->">⇔ Dashed Both (<-->)</option>
+                        <option value="->>">⇉ Async Right (->>)</option>
+                        <option value="<<-">⇇ Async Left (<<-)</option>
+                    </select>
+                    <button class="plantuml-editor-btn secondary" id="manage-nodes">📋 Manage Nodes</button>
                 </div>
 
                 <div class="plantuml-canvas-container">
@@ -105,6 +121,15 @@
 
         // Connection mode
         document.getElementById('connect-mode')?.addEventListener('click', toggleConnectionMode);
+
+        // Arrow type change
+        document.getElementById('arrow-type')?.addEventListener('change', (e) => {
+            editorState.currentArrowType = e.target.value;
+            console.log('[PlantUML Visual Editor] Arrow type changed to:', e.target.value);
+        });
+
+        // Manage nodes
+        document.getElementById('manage-nodes')?.addEventListener('click', showNodeManager);
 
         // Save/Load
         document.getElementById('save-diagram')?.addEventListener('click', saveDiagram);
@@ -288,11 +313,14 @@
             from: fromNode.dataset.id,
             to: toNode.dataset.id,
             fromElement: fromNode,
-            toElement: toNode
+            toElement: toNode,
+            arrowType: editorState.currentArrowType  // Store the arrow type
         };
 
         editorState.connections.push(connection);
         updateConnections();
+        
+        console.log('[PlantUML Visual Editor] Connection created with arrow type:', editorState.currentArrowType);
     }
 
     /**
@@ -304,25 +332,40 @@
 
         svg.innerHTML = '';
 
-        // Add arrowhead marker
+        // Add arrowhead markers
         const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-        const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
-        marker.setAttribute('id', 'arrowhead');
-        marker.setAttribute('markerWidth', '10');
-        marker.setAttribute('markerHeight', '10');
-        marker.setAttribute('refX', '9');
-        marker.setAttribute('refY', '3');
-        marker.setAttribute('orient', 'auto');
+        
+        // Right arrowhead
+        const markerRight = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+        markerRight.setAttribute('id', 'arrowhead-right');
+        markerRight.setAttribute('markerWidth', '10');
+        markerRight.setAttribute('markerHeight', '10');
+        markerRight.setAttribute('refX', '9');
+        markerRight.setAttribute('refY', '3');
+        markerRight.setAttribute('orient', 'auto');
+        const polygonRight = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        polygonRight.setAttribute('points', '0 0, 10 3, 0 6');
+        polygonRight.setAttribute('fill', '#4a9eff');
+        markerRight.appendChild(polygonRight);
+        defs.appendChild(markerRight);
 
-        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-        polygon.setAttribute('points', '0 0, 10 3, 0 6');
-        polygon.setAttribute('fill', '#4a9eff');
+        // Left arrowhead
+        const markerLeft = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+        markerLeft.setAttribute('id', 'arrowhead-left');
+        markerLeft.setAttribute('markerWidth', '10');
+        markerLeft.setAttribute('markerHeight', '10');
+        markerLeft.setAttribute('refX', '1');
+        markerLeft.setAttribute('refY', '3');
+        markerLeft.setAttribute('orient', 'auto');
+        const polygonLeft = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        polygonLeft.setAttribute('points', '10 0, 0 3, 10 6');
+        polygonLeft.setAttribute('fill', '#4a9eff');
+        markerLeft.appendChild(polygonLeft);
+        defs.appendChild(markerLeft);
 
-        marker.appendChild(polygon);
-        defs.appendChild(marker);
         svg.appendChild(defs);
 
-        editorState.connections.forEach(conn => {
+        editorState.connections.forEach((conn, index) => {
             const fromRect = conn.fromElement.getBoundingClientRect();
             const toRect = conn.toElement.getBoundingClientRect();
             const canvasRect = document.getElementById('plantuml-canvas').getBoundingClientRect();
@@ -338,8 +381,40 @@
             line.setAttribute('x2', x2);
             line.setAttribute('y2', y2);
             line.setAttribute('stroke', '#4a9eff');
+            
+            // Determine line style and arrowheads based on arrow type
+            const arrowType = conn.arrowType || '->';
+            
+            if (arrowType.includes('--')) {
+                // Dashed line
+                line.setAttribute('stroke-dasharray', '5,5');
+            }
+            
             line.setAttribute('stroke-width', '2');
-            line.setAttribute('marker-end', 'url(#arrowhead)');
+            
+            // Set arrowheads based on direction
+            if (arrowType.includes('<') && !arrowType.startsWith('<')) {
+                // Bidirectional or left-pointing
+                line.setAttribute('marker-start', 'url(#arrowhead-left)');
+            }
+            if (arrowType.includes('>') || arrowType.endsWith('->') || arrowType.endsWith('->>')) {
+                // Right-pointing
+                line.setAttribute('marker-end', 'url(#arrowhead-right)');
+            }
+            
+            // Make line clickable for deletion
+            line.style.cursor = 'pointer';
+            line.style.pointerEvents = 'stroke';
+            line.dataset.connectionIndex = index;
+            
+            // Add click handler to delete connection
+            line.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm('Delete this connection?')) {
+                    editorState.connections.splice(index, 1);
+                    updateConnections();
+                }
+            });
 
             svg.appendChild(line);
         });
@@ -432,7 +507,8 @@
         editorState.connections.forEach(conn => {
             const fromAlias = sanitizePlantUMLAlias(conn.from);
             const toAlias = sanitizePlantUMLAlias(conn.to);
-            code += `${fromAlias} -> ${toAlias}: Message\n`;
+            const arrowType = conn.arrowType || '->';
+            code += `${fromAlias} ${arrowType} ${toAlias}: Message\n`;
         });
 
         return code;
@@ -469,7 +545,8 @@
             }
             const fromLabel = sanitizePlantUMLClassName(fromLabelElement.textContent.trim());
             const toLabel = sanitizePlantUMLClassName(toLabelElement.textContent.trim());
-            code += `${fromLabel} --> ${toLabel}\n`;
+            const arrowType = conn.arrowType || '-->';
+            code += `${fromLabel} ${arrowType} ${toLabel}\n`;
         });
 
         return code;
@@ -504,7 +581,8 @@
         editorState.connections.forEach(conn => {
             const fromAlias = sanitizePlantUMLAlias(conn.from);
             const toAlias = sanitizePlantUMLAlias(conn.to);
-            code += `${fromAlias} --> ${toAlias}\n`;
+            const arrowType = conn.arrowType || '-->';
+            code += `${fromAlias} ${arrowType} ${toAlias}\n`;
         });
 
         return code;
@@ -536,7 +614,8 @@
         editorState.connections.forEach(conn => {
             const fromAlias = sanitizePlantUMLAlias(conn.from);
             const toAlias = sanitizePlantUMLAlias(conn.to);
-            code += `${fromAlias} --> ${toAlias}\n`;
+            const arrowType = conn.arrowType || '-->';
+            code += `${fromAlias} ${arrowType} ${toAlias}\n`;
         });
 
         return code;
@@ -591,6 +670,152 @@
     }
 
     /**
+     * Show node manager modal for reordering nodes
+     */
+    function showNodeManager() {
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'node-manager-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: #232F3E;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            color: #FAFAFA;
+        `;
+
+        const title = document.createElement('h3');
+        title.textContent = 'Manage Node Order';
+        title.style.cssText = 'margin: 0 0 15px 0; color: #4a9eff;';
+        modal.appendChild(title);
+
+        const description = document.createElement('p');
+        description.textContent = 'Drag nodes to reorder them. This affects the order they appear in generated code.';
+        description.style.cssText = 'margin: 0 0 15px 0; font-size: 12px; color: #DADADA;';
+        modal.appendChild(description);
+
+        const nodeList = document.createElement('div');
+        nodeList.id = 'node-order-list';
+        nodeList.style.cssText = 'display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;';
+
+        // Create draggable node items
+        editorState.nodes.forEach((node, index) => {
+            const nodeItem = document.createElement('div');
+            nodeItem.draggable = true;
+            nodeItem.dataset.nodeIndex = index;
+            nodeItem.style.cssText = `
+                background: #35485E;
+                padding: 10px;
+                border-radius: 4px;
+                cursor: move;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                border: 2px solid transparent;
+            `;
+
+            const dragHandle = document.createElement('span');
+            dragHandle.textContent = '☰';
+            dragHandle.style.cssText = 'color: #DADADA; font-size: 16px;';
+            nodeItem.appendChild(dragHandle);
+
+            const label = node.element.querySelector('.plantuml-node-label').textContent;
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = `${index + 1}. ${label} (${node.type})`;
+            labelSpan.style.cssText = 'flex: 1; color: #FAFAFA;';
+            nodeItem.appendChild(labelSpan);
+
+            // Drag and drop handlers
+            nodeItem.addEventListener('dragstart', (e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', index);
+                nodeItem.style.opacity = '0.5';
+            });
+
+            nodeItem.addEventListener('dragend', (e) => {
+                nodeItem.style.opacity = '1';
+            });
+
+            nodeItem.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                nodeItem.style.borderColor = '#4a9eff';
+            });
+
+            nodeItem.addEventListener('dragleave', (e) => {
+                nodeItem.style.borderColor = 'transparent';
+            });
+
+            nodeItem.addEventListener('drop', (e) => {
+                e.preventDefault();
+                nodeItem.style.borderColor = 'transparent';
+                
+                const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                const toIndex = parseInt(nodeItem.dataset.nodeIndex);
+                
+                if (fromIndex !== toIndex) {
+                    // Reorder nodes array
+                    const [movedNode] = editorState.nodes.splice(fromIndex, 1);
+                    editorState.nodes.splice(toIndex, 0, movedNode);
+                    
+                    // Refresh the list
+                    showNodeManager();
+                    
+                    // Close the old overlay
+                    overlay.remove();
+                }
+            });
+
+            nodeList.appendChild(nodeItem);
+        });
+
+        modal.appendChild(nodeList);
+
+        // Close button
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'Close';
+        closeBtn.style.cssText = `
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        `;
+        closeBtn.addEventListener('click', () => overlay.remove());
+        modal.appendChild(closeBtn);
+
+        overlay.appendChild(modal);
+        
+        // Close on overlay click
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        document.body.appendChild(overlay);
+    }
+
+    /**
      * Save diagram to localStorage
      */
     function saveDiagram() {
@@ -607,7 +832,8 @@
                 })),
                 connections: editorState.connections.map(conn => ({
                     from: conn.from,
-                    to: conn.to
+                    to: conn.to,
+                    arrowType: conn.arrowType || '->'
                 }))
             };
 
@@ -719,7 +945,8 @@
                         from: connData.from,
                         to: connData.to,
                         fromElement: fromNode.element,
-                        toElement: toNode.element
+                        toElement: toNode.element,
+                        arrowType: connData.arrowType || '->'
                     });
                 }
             });
