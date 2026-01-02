@@ -306,6 +306,27 @@
                 width: 100%;
                 min-height: 250px;
                 position: relative;
+                z-index: 1;
+            }
+
+            #connection-svg {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 10;
+                pointer-events: none;
+            }
+
+            #connection-svg line {
+                pointer-events: stroke;
+                stroke-width: 3;
+            }
+
+            #connection-svg line:hover {
+                stroke-width: 5;
+                filter: drop-shadow(0 0 4px #4a9eff);
             }
 
             .plantuml-node {
@@ -320,6 +341,7 @@
                 text-align: center;
                 border: 2px solid #4A5F7F;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                z-index: 5;
             }
 
             .plantuml-node.actor {
@@ -387,6 +409,7 @@
             .plantuml-connection {
                 position: absolute;
                 pointer-events: none;
+                z-index: 10;
             }
 
             .plantuml-output-code {

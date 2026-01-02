@@ -15,7 +15,9 @@
         diagramType: 'sequence',
         connectionMode: false,
         connectionStart: null,
-        currentArrowType: '->'  // Default arrow type
+        currentArrowType: '->',  // Default arrow type
+        isFullPage: false,       // Full page mode
+        gridSize: 20             // Grid size for snap
     };
 
     // Make editor functions globally accessible
@@ -70,7 +72,10 @@
                         <option value="->>">⇉ Async Right (->>)</option>
                         <option value="<<-">⇇ Async Left (<<-)</option>
                     </select>
-                    <button class="plantuml-editor-btn secondary" id="manage-nodes">📋 Manage Nodes</button>
+                    <button class="plantuml-editor-btn secondary" id="manage-nodes">📋 Nodes</button>
+                    <button class="plantuml-editor-btn secondary" id="snap-to-grid">📐 Snap Grid</button>
+                    <button class="plantuml-editor-btn secondary" id="full-page-mode">⛶ Full Page</button>
+                    <button class="plantuml-editor-btn" id="export-png">📷 Export PNG</button>
                 </div>
 
                 <div class="plantuml-canvas-container">
@@ -130,6 +135,15 @@
 
         // Manage nodes
         document.getElementById('manage-nodes')?.addEventListener('click', showNodeManager);
+
+        // Snap to grid
+        document.getElementById('snap-to-grid')?.addEventListener('click', snapNodesToGrid);
+
+        // Full page mode
+        document.getElementById('full-page-mode')?.addEventListener('click', toggleFullPageMode);
+
+        // Export PNG
+        document.getElementById('export-png')?.addEventListener('click', exportToPNG);
 
         // Save/Load
         document.getElementById('save-diagram')?.addEventListener('click', saveDiagram);
@@ -324,6 +338,51 @@
     }
 
     /**
+     * Calculate the intersection point of a line from center to edge of a rectangle
+     * @param {number} cx - Center X of rectangle
+     * @param {number} cy - Center Y of rectangle
+     * @param {number} w - Width of rectangle
+     * @param {number} h - Height of rectangle
+     * @param {number} targetX - Target X point
+     * @param {number} targetY - Target Y point
+     * @returns {Object} {x, y} intersection point
+     */
+    function getEdgeIntersection(cx, cy, w, h, targetX, targetY) {
+        const dx = targetX - cx;
+        const dy = targetY - cy;
+        
+        if (dx === 0 && dy === 0) return { x: cx, y: cy };
+        
+        const halfW = w / 2;
+        const halfH = h / 2;
+        
+        // Calculate intersection with rectangle edges
+        let t = Infinity;
+        
+        // Right edge
+        if (dx > 0) {
+            t = Math.min(t, halfW / dx);
+        }
+        // Left edge
+        if (dx < 0) {
+            t = Math.min(t, -halfW / dx);
+        }
+        // Bottom edge
+        if (dy > 0) {
+            t = Math.min(t, halfH / dy);
+        }
+        // Top edge
+        if (dy < 0) {
+            t = Math.min(t, -halfH / dy);
+        }
+        
+        return {
+            x: cx + dx * t,
+            y: cy + dy * t
+        };
+    }
+
+    /**
      * Update all connection lines on the canvas
      */
     function updateConnections() {
@@ -332,34 +391,34 @@
 
         svg.innerHTML = '';
 
-        // Add arrowhead markers
+        // Add arrowhead markers - larger and more visible
         const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
         
-        // Right arrowhead
+        // Right arrowhead (larger)
         const markerRight = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
         markerRight.setAttribute('id', 'arrowhead-right');
-        markerRight.setAttribute('markerWidth', '10');
-        markerRight.setAttribute('markerHeight', '10');
-        markerRight.setAttribute('refX', '9');
-        markerRight.setAttribute('refY', '3');
+        markerRight.setAttribute('markerWidth', '12');
+        markerRight.setAttribute('markerHeight', '12');
+        markerRight.setAttribute('refX', '10');
+        markerRight.setAttribute('refY', '4');
         markerRight.setAttribute('orient', 'auto');
         const polygonRight = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-        polygonRight.setAttribute('points', '0 0, 10 3, 0 6');
-        polygonRight.setAttribute('fill', '#4a9eff');
+        polygonRight.setAttribute('points', '0 0, 12 4, 0 8');
+        polygonRight.setAttribute('fill', '#00CAFF');
         markerRight.appendChild(polygonRight);
         defs.appendChild(markerRight);
 
-        // Left arrowhead
+        // Left arrowhead (larger)
         const markerLeft = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
         markerLeft.setAttribute('id', 'arrowhead-left');
-        markerLeft.setAttribute('markerWidth', '10');
-        markerLeft.setAttribute('markerHeight', '10');
-        markerLeft.setAttribute('refX', '1');
-        markerLeft.setAttribute('refY', '3');
+        markerLeft.setAttribute('markerWidth', '12');
+        markerLeft.setAttribute('markerHeight', '12');
+        markerLeft.setAttribute('refX', '2');
+        markerLeft.setAttribute('refY', '4');
         markerLeft.setAttribute('orient', 'auto');
         const polygonLeft = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-        polygonLeft.setAttribute('points', '10 0, 0 3, 10 6');
-        polygonLeft.setAttribute('fill', '#4a9eff');
+        polygonLeft.setAttribute('points', '12 0, 0 4, 12 8');
+        polygonLeft.setAttribute('fill', '#00CAFF');
         markerLeft.appendChild(polygonLeft);
         defs.appendChild(markerLeft);
 
@@ -370,50 +429,52 @@
             const toRect = conn.toElement.getBoundingClientRect();
             const canvasRect = document.getElementById('plantuml-canvas').getBoundingClientRect();
 
-            const x1 = fromRect.left - canvasRect.left + fromRect.width / 2;
-            const y1 = fromRect.top - canvasRect.top + fromRect.height / 2;
-            const x2 = toRect.left - canvasRect.left + toRect.width / 2;
-            const y2 = toRect.top - canvasRect.top + toRect.height / 2;
+            // Calculate centers
+            const fromCX = fromRect.left - canvasRect.left + fromRect.width / 2;
+            const fromCY = fromRect.top - canvasRect.top + fromRect.height / 2;
+            const toCX = toRect.left - canvasRect.left + toRect.width / 2;
+            const toCY = toRect.top - canvasRect.top + toRect.height / 2;
+            
+            // Calculate edge intersection points (so arrows don't go through nodes)
+            const fromEdge = getEdgeIntersection(fromCX, fromCY, fromRect.width, fromRect.height, toCX, toCY);
+            const toEdge = getEdgeIntersection(toCX, toCY, toRect.width, toRect.height, fromCX, fromCY);
 
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            line.setAttribute('x1', x1);
-            line.setAttribute('y1', y1);
-            line.setAttribute('x2', x2);
-            line.setAttribute('y2', y2);
-            line.setAttribute('stroke', '#4a9eff');
+            line.setAttribute('x1', fromEdge.x);
+            line.setAttribute('y1', fromEdge.y);
+            line.setAttribute('x2', toEdge.x);
+            line.setAttribute('y2', toEdge.y);
+            line.setAttribute('stroke', '#00CAFF');
             
             // Determine line style and arrowheads based on arrow type
             const arrowType = conn.arrowType || '->';
             
             if (arrowType.includes('--')) {
                 // Dashed line
-                line.setAttribute('stroke-dasharray', '5,5');
+                line.setAttribute('stroke-dasharray', '8,4');
             }
             
-            line.setAttribute('stroke-width', '2');
+            line.setAttribute('stroke-width', '3');
             
             // Set arrowheads based on direction
-            if (arrowType.includes('<') && !arrowType.startsWith('<')) {
-                // Bidirectional or left-pointing
+            if (arrowType.startsWith('<')) {
+                // Left-pointing (at start)
                 line.setAttribute('marker-start', 'url(#arrowhead-left)');
             }
-            if (arrowType.includes('>') || arrowType.endsWith('->') || arrowType.endsWith('->>')) {
-                // Right-pointing
+            if (arrowType.includes('>')) {
+                // Right-pointing (at end)
                 line.setAttribute('marker-end', 'url(#arrowhead-right)');
             }
             
-            // Make line clickable for deletion
+            // Make line clickable for editing
             line.style.cursor = 'pointer';
             line.style.pointerEvents = 'stroke';
             line.dataset.connectionIndex = index;
             
-            // Add click handler to delete connection
+            // Add click handler to edit connection
             line.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (confirm('Delete this connection?')) {
-                    editorState.connections.splice(index, 1);
-                    updateConnections();
-                }
+                showConnectionEditor(index, conn);
             });
 
             svg.appendChild(line);
@@ -816,6 +877,203 @@
     }
 
     /**
+     * Show connection editor modal for editing arrow type/direction
+     * @param {number} index - Index of the connection in editorState.connections
+     * @param {Object} conn - The connection object
+     */
+    function showConnectionEditor(index, conn) {
+        // Get node labels for display
+        const fromLabel = conn.fromElement.querySelector('.plantuml-node-label').textContent;
+        const toLabel = conn.toElement.querySelector('.plantuml-node-label').textContent;
+        
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'connection-editor-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: #232F3E;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 400px;
+            width: 90%;
+            color: #FAFAFA;
+        `;
+
+        const title = document.createElement('h3');
+        title.textContent = 'Edit Connection';
+        title.style.cssText = 'margin: 0 0 15px 0; color: #00CAFF;';
+        modal.appendChild(title);
+
+        // Connection info
+        const info = document.createElement('p');
+        info.innerHTML = `<strong>${fromLabel}</strong> → <strong>${toLabel}</strong>`;
+        info.style.cssText = 'margin: 0 0 15px 0; font-size: 14px; color: #DADADA;';
+        modal.appendChild(info);
+
+        // Arrow type selector
+        const selectorLabel = document.createElement('label');
+        selectorLabel.textContent = 'Arrow Type:';
+        selectorLabel.style.cssText = 'display: block; margin-bottom: 8px; color: #DADADA; font-size: 12px;';
+        modal.appendChild(selectorLabel);
+
+        const arrowTypes = [
+            { value: '->', label: '→ Solid Right (->)' },
+            { value: '<-', label: '← Solid Left (<-)' },
+            { value: '<->', label: '↔ Solid Both (<->)' },
+            { value: '-->', label: '⇢ Dashed Right (-->)' },
+            { value: '<--', label: '⇠ Dashed Left (<--)' },
+            { value: '<-->', label: '⇔ Dashed Both (<-->)' },
+            { value: '->>', label: '⇉ Async Right (->>)' },
+            { value: '<<-', label: '⇇ Async Left (<<-)' }
+        ];
+
+        const select = document.createElement('select');
+        select.style.cssText = `
+            width: 100%;
+            padding: 10px;
+            background: #35485E;
+            border: 1px solid #4A5F7F;
+            border-radius: 4px;
+            color: #FAFAFA;
+            font-size: 14px;
+            margin-bottom: 15px;
+            cursor: pointer;
+        `;
+
+        arrowTypes.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type.value;
+            option.textContent = type.label;
+            if (type.value === conn.arrowType) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+
+        modal.appendChild(select);
+
+        // Swap direction button
+        const swapBtn = document.createElement('button');
+        swapBtn.textContent = '🔄 Swap Direction';
+        swapBtn.style.cssText = `
+            width: 100%;
+            padding: 10px;
+            background: #35485E;
+            border: 1px solid #4A5F7F;
+            border-radius: 4px;
+            color: #FAFAFA;
+            font-size: 14px;
+            margin-bottom: 15px;
+            cursor: pointer;
+        `;
+        swapBtn.addEventListener('click', () => {
+            // Swap from and to
+            const tempFrom = conn.from;
+            const tempFromElement = conn.fromElement;
+            conn.from = conn.to;
+            conn.fromElement = conn.toElement;
+            conn.to = tempFrom;
+            conn.toElement = tempFromElement;
+            
+            // Update info display
+            const newFromLabel = conn.fromElement.querySelector('.plantuml-node-label').textContent;
+            const newToLabel = conn.toElement.querySelector('.plantuml-node-label').textContent;
+            info.innerHTML = `<strong>${newFromLabel}</strong> → <strong>${newToLabel}</strong>`;
+            
+            updateConnections();
+        });
+        modal.appendChild(swapBtn);
+
+        // Button container
+        const btnContainer = document.createElement('div');
+        btnContainer.style.cssText = 'display: flex; gap: 10px; margin-top: 10px;';
+
+        // Save button
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = '✓ Save';
+        saveBtn.style.cssText = `
+            flex: 1;
+            padding: 10px;
+            background: #00CAFF;
+            border: none;
+            border-radius: 4px;
+            color: #232F3E;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        `;
+        saveBtn.addEventListener('click', () => {
+            conn.arrowType = select.value;
+            updateConnections();
+            overlay.remove();
+        });
+        btnContainer.appendChild(saveBtn);
+
+        // Delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = '🗑️ Delete';
+        deleteBtn.style.cssText = `
+            flex: 1;
+            padding: 10px;
+            background: #65151E;
+            border: none;
+            border-radius: 4px;
+            color: #FAFAFA;
+            font-size: 14px;
+            cursor: pointer;
+        `;
+        deleteBtn.addEventListener('click', () => {
+            if (confirm('Delete this connection?')) {
+                editorState.connections.splice(index, 1);
+                updateConnections();
+                overlay.remove();
+            }
+        });
+        btnContainer.appendChild(deleteBtn);
+
+        // Cancel button
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.style.cssText = `
+            flex: 1;
+            padding: 10px;
+            background: #1E2222;
+            border: 1px solid #35485E;
+            border-radius: 4px;
+            color: #DADADA;
+            font-size: 14px;
+            cursor: pointer;
+        `;
+        cancelBtn.addEventListener('click', () => overlay.remove());
+        btnContainer.appendChild(cancelBtn);
+
+        modal.appendChild(btnContainer);
+        overlay.appendChild(modal);
+        
+        // Close on overlay click
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        document.body.appendChild(overlay);
+    }
+
+    /**
      * Save diagram to localStorage
      */
     function saveDiagram() {
@@ -986,6 +1244,328 @@
         } catch (error) {
             console.error('[PlantUML Visual Editor] Error checking for saved diagram:', error);
         }
+    }
+
+    /**
+     * Snap all nodes to a grid for clean alignment
+     */
+    function snapNodesToGrid() {
+        const gridSize = editorState.gridSize;
+        
+        editorState.nodes.forEach(node => {
+            const element = node.element;
+            const currentLeft = parseInt(element.style.left) || 0;
+            const currentTop = parseInt(element.style.top) || 0;
+            
+            // Snap to nearest grid point
+            const snappedLeft = Math.round(currentLeft / gridSize) * gridSize;
+            const snappedTop = Math.round(currentTop / gridSize) * gridSize;
+            
+            element.style.left = snappedLeft + 'px';
+            element.style.top = snappedTop + 'px';
+        });
+        
+        updateConnections();
+        
+        const btn = document.getElementById('snap-to-grid');
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Snapped!';
+        setTimeout(() => {
+            btn.textContent = originalText;
+        }, 1500);
+        
+        console.log('[PlantUML Visual Editor] Nodes snapped to grid (size: ' + gridSize + 'px)');
+    }
+
+    /**
+     * Toggle full page mode for the editor
+     */
+    function toggleFullPageMode() {
+        editorState.isFullPage = !editorState.isFullPage;
+        const panel = document.getElementById('plantuml-helper-panel');
+        const btn = document.getElementById('full-page-mode');
+        
+        if (editorState.isFullPage) {
+            // Store original styles
+            panel.dataset.originalStyles = JSON.stringify({
+                top: panel.style.top,
+                right: panel.style.right,
+                left: panel.style.left,
+                width: panel.style.width,
+                height: panel.style.height,
+                maxHeight: panel.style.maxHeight,
+                maxWidth: panel.style.maxWidth,
+                borderRadius: panel.style.borderRadius
+            });
+            
+            // Apply full page styles
+            panel.style.top = '0';
+            panel.style.left = '0';
+            panel.style.right = '0';
+            panel.style.width = '100vw';
+            panel.style.height = '100vh';
+            panel.style.maxHeight = '100vh';
+            panel.style.maxWidth = '100vw';
+            panel.style.borderRadius = '0';
+            
+            btn.textContent = '⛶ Exit Full';
+            btn.classList.add('active');
+            
+            console.log('[PlantUML Visual Editor] Entered full page mode');
+        } else {
+            // Restore original styles
+            try {
+                const original = JSON.parse(panel.dataset.originalStyles || '{}');
+                panel.style.top = original.top || '20px';
+                panel.style.right = original.right || '20px';
+                panel.style.left = original.left || 'auto';
+                panel.style.width = original.width || '450px';
+                panel.style.height = original.height || '600px';
+                panel.style.maxHeight = original.maxHeight || '85vh';
+                panel.style.maxWidth = original.maxWidth || '90vw';
+                panel.style.borderRadius = original.borderRadius || '8px';
+            } catch (e) {
+                // Fallback to defaults
+                panel.style.top = '20px';
+                panel.style.right = '20px';
+                panel.style.left = 'auto';
+                panel.style.width = '450px';
+                panel.style.height = '600px';
+                panel.style.maxHeight = '85vh';
+                panel.style.maxWidth = '90vw';
+                panel.style.borderRadius = '8px';
+            }
+            
+            btn.textContent = '⛶ Full Page';
+            btn.classList.remove('active');
+            
+            console.log('[PlantUML Visual Editor] Exited full page mode');
+        }
+        
+        // Update connections after resize
+        setTimeout(updateConnections, 100);
+    }
+
+    /**
+     * Export the diagram canvas as PNG image
+     */
+    function exportToPNG() {
+        const canvas = document.getElementById('plantuml-canvas');
+        const svg = document.getElementById('connection-svg');
+        
+        if (!canvas || editorState.nodes.length === 0) {
+            alert('No diagram to export. Add some nodes first!');
+            return;
+        }
+        
+        // Create a canvas element for rendering
+        const exportCanvas = document.createElement('canvas');
+        const ctx = exportCanvas.getContext('2d');
+        
+        // Calculate bounds of all nodes
+        let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+        
+        editorState.nodes.forEach(node => {
+            const rect = node.element.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            const left = rect.left - canvasRect.left;
+            const top = rect.top - canvasRect.top;
+            
+            minX = Math.min(minX, left);
+            minY = Math.min(minY, top);
+            maxX = Math.max(maxX, left + rect.width);
+            maxY = Math.max(maxY, top + rect.height);
+        });
+        
+        // Add padding
+        const padding = 40;
+        minX = Math.max(0, minX - padding);
+        minY = Math.max(0, minY - padding);
+        maxX += padding;
+        maxY += padding;
+        
+        const width = maxX - minX;
+        const height = maxY - minY;
+        
+        exportCanvas.width = width * 2; // 2x for better quality
+        exportCanvas.height = height * 2;
+        ctx.scale(2, 2);
+        
+        // Fill background
+        ctx.fillStyle = '#1e1e1e';
+        ctx.fillRect(0, 0, width, height);
+        
+        // Draw grid (optional visual aid)
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 0.5;
+        for (let x = 0; x < width; x += editorState.gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+        }
+        for (let y = 0; y < height; y += editorState.gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+        }
+        
+        // Draw connections with edge-to-edge lines
+        ctx.strokeStyle = '#00CAFF';
+        ctx.lineWidth = 3;
+        
+        editorState.connections.forEach(conn => {
+            const fromRect = conn.fromElement.getBoundingClientRect();
+            const toRect = conn.toElement.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            
+            // Calculate centers
+            const fromCX = fromRect.left - canvasRect.left + fromRect.width / 2 - minX;
+            const fromCY = fromRect.top - canvasRect.top + fromRect.height / 2 - minY;
+            const toCX = toRect.left - canvasRect.left + toRect.width / 2 - minX;
+            const toCY = toRect.top - canvasRect.top + toRect.height / 2 - minY;
+            
+            // Calculate edge intersection points
+            const fromEdge = getEdgeIntersectionForExport(fromCX, fromCY, fromRect.width, fromRect.height, toCX, toCY);
+            const toEdge = getEdgeIntersectionForExport(toCX, toCY, toRect.width, toRect.height, fromCX, fromCY);
+            
+            const x1 = fromEdge.x;
+            const y1 = fromEdge.y;
+            const x2 = toEdge.x;
+            const y2 = toEdge.y;
+            
+            const arrowType = conn.arrowType || '->';
+            
+            // Set line style
+            if (arrowType.includes('--')) {
+                ctx.setLineDash([8, 4]);
+            } else {
+                ctx.setLineDash([]);
+            }
+            
+            // Draw line
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            
+            // Draw arrowhead(s)
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            const arrowLength = 12;
+            
+            ctx.fillStyle = '#00CAFF';
+            
+            // Right arrow (at end)
+            if (arrowType.includes('>')) {
+                ctx.beginPath();
+                ctx.moveTo(x2, y2);
+                ctx.lineTo(x2 - arrowLength * Math.cos(angle - Math.PI / 6), y2 - arrowLength * Math.sin(angle - Math.PI / 6));
+                ctx.lineTo(x2 - arrowLength * Math.cos(angle + Math.PI / 6), y2 - arrowLength * Math.sin(angle + Math.PI / 6));
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            // Left arrow (at start)
+            if (arrowType.startsWith('<')) {
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x1 + arrowLength * Math.cos(angle - Math.PI / 6), y1 + arrowLength * Math.sin(angle - Math.PI / 6));
+                ctx.lineTo(x1 + arrowLength * Math.cos(angle + Math.PI / 6), y1 + arrowLength * Math.sin(angle + Math.PI / 6));
+                ctx.closePath();
+                ctx.fill();
+            }
+        });
+        
+        // Helper function for edge intersection in export
+        function getEdgeIntersectionForExport(cx, cy, w, h, targetX, targetY) {
+            const dx = targetX - cx;
+            const dy = targetY - cy;
+            
+            if (dx === 0 && dy === 0) return { x: cx, y: cy };
+            
+            const halfW = w / 2;
+            const halfH = h / 2;
+            
+            let t = Infinity;
+            
+            if (dx > 0) t = Math.min(t, halfW / dx);
+            if (dx < 0) t = Math.min(t, -halfW / dx);
+            if (dy > 0) t = Math.min(t, halfH / dy);
+            if (dy < 0) t = Math.min(t, -halfH / dy);
+            
+            return { x: cx + dx * t, y: cy + dy * t };
+        }
+        
+        ctx.setLineDash([]);
+        
+        // Draw nodes
+        const nodeColors = {
+            node: { bg: '#4a9eff', border: '#3a8eef' },
+            actor: { bg: '#9b59b6', border: '#8e44ad' },
+            class: { bg: '#27ae60', border: '#229954' },
+            component: { bg: '#e67e22', border: '#d35400' },
+            database: { bg: '#c0392b', border: '#a93226' }
+        };
+        
+        editorState.nodes.forEach(node => {
+            const rect = node.element.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            const x = rect.left - canvasRect.left - minX;
+            const y = rect.top - canvasRect.top - minY;
+            const w = rect.width;
+            const h = rect.height;
+            
+            const colors = nodeColors[node.type] || nodeColors.node;
+            
+            // Draw node background
+            ctx.fillStyle = colors.bg;
+            ctx.strokeStyle = colors.border;
+            ctx.lineWidth = 2;
+            
+            if (node.type === 'actor') {
+                // Draw circle for actor
+                ctx.beginPath();
+                ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            } else if (node.type === 'database') {
+                // Draw rounded bottom for database
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, [4, 4, 15, 15]);
+                ctx.fill();
+                ctx.stroke();
+            } else {
+                // Draw rounded rectangle
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, 6);
+                ctx.fill();
+                ctx.stroke();
+            }
+            
+            // Draw label
+            const label = node.element.querySelector('.plantuml-node-label').textContent;
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, x + w / 2, y + h / 2);
+        });
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.download = 'diagram-' + new Date().toISOString().slice(0, 10) + '.png';
+        link.href = exportCanvas.toDataURL('image/png');
+        link.click();
+        
+        const btn = document.getElementById('export-png');
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Exported!';
+        setTimeout(() => {
+            btn.textContent = originalText;
+        }, 2000);
+        
+        console.log('[PlantUML Visual Editor] Diagram exported as PNG');
     }
 
     // Export for testing

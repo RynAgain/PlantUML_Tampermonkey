@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         PlantUML Helper - Reference Guide & GUI Aid (Modular)
 // @namespace    http://tampermonkey.net/
-// @version      2.5.0
-// @description  Comprehensive reference guide and visual GUI editor for PlantUML diagrams with syntax help, examples, drag-and-drop diagram builder, arrow direction control, and node ordering (Alexa Design Theme)
+// @version      3.1.0
+// @description  Visual diagram editor with full page mode, grid snap, PNG export, arrow direction control, connection editing, and node ordering - now a standalone diagramming tool!
 // @author       RynAgain
 // @match        *://*/*
 // @grant        GM_addStyle
@@ -21,7 +21,7 @@
     'use strict';
 
     console.log('PlantUML Helper (Modular) - Main script started');
-    console.log('Version: 2.5.0 - Alexa Design Theme + Save/Load + Resizable UI + Arrow Direction Control + Node Ordering');
+    console.log('Version: 3.1.0 - Edge-to-edge arrows + Click-to-edit connections + Swap direction');
 
     // All modules are loaded via @require directives and self-initialize
     // The loading order is:
