@@ -84,6 +84,7 @@
                     </select>
                     <button class="plantuml-editor-btn secondary" id="manage-nodes">📋 Nodes</button>
                     <button class="plantuml-editor-btn secondary" id="snap-to-grid">📐 Snap</button>
+                    <button class="plantuml-editor-btn secondary" id="auto-layout">🔀 Auto Layout</button>
                     <button class="plantuml-editor-btn secondary active" id="toggle-grid">▦ Grid</button>
                     <button class="plantuml-editor-btn secondary" id="full-page-mode">⛶ Full Page</button>
                     <button class="plantuml-editor-btn" id="export-png">📷 Export PNG</button>
@@ -95,7 +96,7 @@
                     <button class="plantuml-editor-btn secondary" id="zoom-in" title="Zoom In">+</button>
                     <button class="plantuml-editor-btn secondary" id="zoom-reset" title="Reset View">⟲ Reset</button>
                     <button class="plantuml-editor-btn secondary" id="zoom-fit" title="Fit to View">⊡ Fit</button>
-                    <span class="plantuml-pan-hint">Hold Shift + drag to pan</span>
+                    <span class="plantuml-pan-hint">Hold Ctrl + drag to pan</span>
                 </div>
 
                 <div class="plantuml-canvas-container" id="canvas-container">
@@ -160,6 +161,9 @@
 
         // Snap to grid
         document.getElementById('snap-to-grid')?.addEventListener('click', snapNodesToGrid);
+
+        // Auto layout
+        document.getElementById('auto-layout')?.addEventListener('click', autoLayoutNodes);
 
         // Toggle grid
         document.getElementById('toggle-grid')?.addEventListener('click', toggleGrid);
@@ -268,8 +272,8 @@
 
         function dragMouseDown(e) {
             if (e.target.contentEditable === 'true') return;
-            // Don't start drag if we're in panning mode
-            if (e.shiftKey) return;
+            // Don't start drag if we're in panning mode (Ctrl+click)
+            if (e.ctrlKey) return;
             e.preventDefault();
             e.stopPropagation();
             pos3 = e.clientX;
@@ -1364,6 +1368,209 @@
     }
 
     /**
+     * Auto-layout nodes based on their connections using a force-directed algorithm
+     * This arranges nodes so connected nodes are closer together and non-connected nodes spread out
+     */
+    function autoLayoutNodes() {
+        if (editorState.nodes.length === 0) {
+            alert('No nodes to layout. Add some nodes first!');
+            return;
+        }
+
+        const gridSize = editorState.gridSize;
+        const nodeSpacing = 120; // Minimum spacing between nodes
+        const iterations = 100; // Number of simulation iterations
+        
+        // Build adjacency information
+        const nodeMap = new Map();
+        editorState.nodes.forEach((node, index) => {
+            nodeMap.set(node.id, {
+                index: index,
+                node: node,
+                x: parseInt(node.element.style.left) || 50 + index * 100,
+                y: parseInt(node.element.style.top) || 50,
+                vx: 0,
+                vy: 0,
+                connections: []
+            });
+        });
+        
+        // Map connections
+        editorState.connections.forEach(conn => {
+            const fromNode = nodeMap.get(conn.from);
+            const toNode = nodeMap.get(conn.to);
+            if (fromNode && toNode) {
+                fromNode.connections.push(conn.to);
+                toNode.connections.push(conn.from);
+            }
+        });
+        
+        const nodes = Array.from(nodeMap.values());
+        
+        // Find root nodes (nodes with no incoming connections or actors)
+        const incomingCount = new Map();
+        editorState.nodes.forEach(n => incomingCount.set(n.id, 0));
+        editorState.connections.forEach(conn => {
+            incomingCount.set(conn.to, (incomingCount.get(conn.to) || 0) + 1);
+        });
+        
+        // Identify layers using topological sort (for hierarchical layout)
+        const layers = [];
+        const visited = new Set();
+        const nodeLayer = new Map();
+        
+        // Start with root nodes (no incoming connections or actors)
+        let currentLayer = nodes.filter(n =>
+            incomingCount.get(n.node.id) === 0 || n.node.type === 'actor'
+        );
+        
+        if (currentLayer.length === 0) {
+            // No clear roots, start with first node
+            currentLayer = [nodes[0]];
+        }
+        
+        let layerIndex = 0;
+        while (currentLayer.length > 0 && visited.size < nodes.length) {
+            layers.push(currentLayer);
+            currentLayer.forEach(n => {
+                visited.add(n.node.id);
+                nodeLayer.set(n.node.id, layerIndex);
+            });
+            
+            // Find next layer (nodes connected from current layer)
+            const nextLayerSet = new Set();
+            currentLayer.forEach(n => {
+                n.connections.forEach(connId => {
+                    if (!visited.has(connId)) {
+                        const connNode = nodeMap.get(connId);
+                        if (connNode) {
+                            nextLayerSet.add(connNode);
+                        }
+                    }
+                });
+            });
+            
+            currentLayer = Array.from(nextLayerSet);
+            layerIndex++;
+            
+            // Safety check to prevent infinite loop
+            if (layerIndex > nodes.length) break;
+        }
+        
+        // Add any remaining unvisited nodes to the last layer
+        const remaining = nodes.filter(n => !visited.has(n.node.id));
+        if (remaining.length > 0) {
+            layers.push(remaining);
+        }
+        
+        // Position nodes based on layers (hierarchical layout)
+        const startX = 60;
+        const startY = 60;
+        const layerSpacing = 150; // Horizontal spacing between layers
+        const nodeVerticalSpacing = 100; // Vertical spacing between nodes in same layer
+        
+        layers.forEach((layer, lIndex) => {
+            const layerHeight = layer.length * nodeVerticalSpacing;
+            const startYOffset = Math.max(startY, (400 - layerHeight) / 2); // Center vertically
+            
+            layer.forEach((nodeData, nIndex) => {
+                nodeData.x = startX + lIndex * layerSpacing;
+                nodeData.y = startYOffset + nIndex * nodeVerticalSpacing;
+            });
+        });
+        
+        // Apply force-directed refinement for better spacing
+        const repulsionForce = 5000;
+        const attractionForce = 0.05;
+        const damping = 0.9;
+        
+        for (let i = 0; i < iterations; i++) {
+            // Reset velocities
+            nodes.forEach(n => {
+                n.vx = 0;
+                n.vy = 0;
+            });
+            
+            // Repulsion between all nodes
+            for (let j = 0; j < nodes.length; j++) {
+                for (let k = j + 1; k < nodes.length; k++) {
+                    const n1 = nodes[j];
+                    const n2 = nodes[k];
+                    
+                    const dx = n2.x - n1.x;
+                    const dy = n2.y - n1.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    
+                    if (dist < nodeSpacing * 2) {
+                        const force = repulsionForce / (dist * dist);
+                        const fx = (dx / dist) * force;
+                        const fy = (dy / dist) * force;
+                        
+                        n1.vx -= fx;
+                        n1.vy -= fy;
+                        n2.vx += fx;
+                        n2.vy += fy;
+                    }
+                }
+            }
+            
+            // Attraction along connections
+            editorState.connections.forEach(conn => {
+                const n1 = nodeMap.get(conn.from);
+                const n2 = nodeMap.get(conn.to);
+                
+                if (n1 && n2) {
+                    const dx = n2.x - n1.x;
+                    const dy = n2.y - n1.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    
+                    // Only apply attraction if nodes are far apart
+                    if (dist > nodeSpacing) {
+                        const force = (dist - nodeSpacing) * attractionForce;
+                        const fx = (dx / dist) * force;
+                        const fy = (dy / dist) * force;
+                        
+                        n1.vx += fx;
+                        n1.vy += fy;
+                        n2.vx -= fx;
+                        n2.vy -= fy;
+                    }
+                }
+            });
+            
+            // Apply velocities with damping
+            nodes.forEach(n => {
+                n.x += n.vx * damping;
+                n.y += n.vy * damping;
+                
+                // Keep nodes within bounds
+                n.x = Math.max(20, n.x);
+                n.y = Math.max(20, n.y);
+            });
+        }
+        
+        // Snap to grid and apply positions
+        nodes.forEach(nodeData => {
+            const snappedX = Math.round(nodeData.x / gridSize) * gridSize;
+            const snappedY = Math.round(nodeData.y / gridSize) * gridSize;
+            
+            nodeData.node.element.style.left = snappedX + 'px';
+            nodeData.node.element.style.top = snappedY + 'px';
+        });
+        
+        updateConnections();
+        
+        const btn = document.getElementById('auto-layout');
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Arranged!';
+        setTimeout(() => {
+            btn.textContent = originalText;
+        }, 1500);
+        
+        console.log('[PlantUML Visual Editor] Auto-layout applied (' + layers.length + ' layers)');
+    }
+
+    /**
      * Toggle full page mode for the editor
      */
     function toggleFullPageMode() {
@@ -1719,12 +1926,12 @@
     }
 
     /**
-     * Handle pan start (Shift + drag or middle mouse button)
+     * Handle pan start (Ctrl + drag or middle mouse button)
      * @param {MouseEvent} e - Mouse event
      */
     function handlePanStart(e) {
-        // Start panning with Shift + left click or middle mouse button
-        if ((e.shiftKey && e.button === 0) || e.button === 1) {
+        // Start panning with Ctrl + left click or middle mouse button
+        if ((e.ctrlKey && e.button === 0) || e.button === 1) {
             e.preventDefault();
             editorState.isPanning = true;
             editorState.panStartX = e.clientX - editorState.panX;

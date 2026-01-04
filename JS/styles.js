@@ -349,6 +349,8 @@
                     linear-gradient(to right, rgba(53, 72, 94, 0.3) 1px, transparent 1px),
                     linear-gradient(to bottom, rgba(53, 72, 94, 0.3) 1px, transparent 1px);
                 background-size: 20px 20px;
+                background-position: 0 0;
+                background-repeat: repeat;
             }
 
             #connection-svg {
