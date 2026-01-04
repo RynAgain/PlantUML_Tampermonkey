@@ -383,7 +383,18 @@
                 removeNode(node);
             });
             
+            // Add color button
+            const colorBtn = document.createElement('button');
+            colorBtn.className = 'plantuml-node-color';
+            colorBtn.textContent = '🎨';
+            colorBtn.title = 'Change color';
+            colorBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showNodeColorPicker(node);
+            });
+            
             node.appendChild(label);
+            node.appendChild(colorBtn);
             node.appendChild(deleteBtn);
             node.style.left = nodeData.left;
             node.style.top = nodeData.top;
@@ -399,10 +410,17 @@
                 }
             });
             
+            // Apply custom color if present
+            if (nodeData.customColor) {
+                node.style.backgroundColor = nodeData.customColor;
+                node.dataset.customColor = nodeData.customColor;
+            }
+            
             editorState.nodes.push({
                 id: nodeData.id,
                 type: nodeData.type,
-                element: node
+                element: node,
+                customColor: nodeData.customColor || null
             });
         });
         
@@ -484,7 +502,18 @@
             removeNode(node);
         });
 
+        // Add color button
+        const colorBtn = document.createElement('button');
+        colorBtn.className = 'plantuml-node-color';
+        colorBtn.textContent = '🎨';
+        colorBtn.title = 'Change color';
+        colorBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showNodeColorPicker(node);
+        });
+
         node.appendChild(label);
+        node.appendChild(colorBtn);
         node.appendChild(deleteBtn);
 
         // Position randomly but visible
@@ -1493,6 +1522,324 @@
     }
 
     /**
+     * Show color picker modal for a node
+     * @param {HTMLElement} nodeElement - The node DOM element
+     */
+    function showNodeColorPicker(nodeElement) {
+        const nodeId = nodeElement.dataset.id;
+        const nodeData = editorState.nodes.find(n => n.id === nodeId);
+        if (!nodeData) return;
+        
+        const currentColor = nodeData.customColor || getDefaultNodeColor(nodeData.type);
+        
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'color-picker-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: #232F3E;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 350px;
+            width: 90%;
+            color: #FAFAFA;
+        `;
+
+        const title = document.createElement('h3');
+        title.textContent = 'Choose Node Color';
+        title.style.cssText = 'margin: 0 0 15px 0; color: #00CAFF;';
+        modal.appendChild(title);
+
+        // Node label
+        const nodeLabel = nodeElement.querySelector('.plantuml-node-label').textContent;
+        const info = document.createElement('p');
+        info.textContent = `Node: ${nodeLabel}`;
+        info.style.cssText = 'margin: 0 0 15px 0; font-size: 14px; color: #DADADA;';
+        modal.appendChild(info);
+
+        // Preset colors
+        const presetLabel = document.createElement('label');
+        presetLabel.textContent = 'Preset Colors:';
+        presetLabel.style.cssText = 'display: block; margin-bottom: 8px; color: #DADADA; font-size: 12px;';
+        modal.appendChild(presetLabel);
+
+        const presetColors = [
+            '#4a9eff', // Blue (default node)
+            '#9b59b6', // Purple (actor)
+            '#27ae60', // Green (class)
+            '#e67e22', // Orange (component)
+            '#c0392b', // Red (database)
+            '#3498db', // Light blue
+            '#1abc9c', // Teal
+            '#f39c12', // Yellow
+            '#e74c3c', // Bright red
+            '#9b59b6', // Purple
+            '#34495e', // Dark gray
+            '#16a085', // Dark teal
+            '#d35400', // Dark orange
+            '#8e44ad', // Dark purple
+            '#2c3e50', // Navy
+            '#f1c40f'  // Gold
+        ];
+
+        const presetContainer = document.createElement('div');
+        presetContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;';
+
+        presetColors.forEach(color => {
+            const colorBtn = document.createElement('button');
+            colorBtn.style.cssText = `
+                width: 32px;
+                height: 32px;
+                border-radius: 4px;
+                border: 2px solid ${color === currentColor ? '#FAFAFA' : 'transparent'};
+                background: ${color};
+                cursor: pointer;
+                transition: transform 0.1s;
+            `;
+            colorBtn.addEventListener('click', () => {
+                // Update selection visual
+                presetContainer.querySelectorAll('button').forEach(btn => {
+                    btn.style.borderColor = 'transparent';
+                });
+                colorBtn.style.borderColor = '#FAFAFA';
+                colorInput.value = color;
+                previewBox.style.backgroundColor = color;
+            });
+            colorBtn.addEventListener('mouseenter', () => {
+                colorBtn.style.transform = 'scale(1.1)';
+            });
+            colorBtn.addEventListener('mouseleave', () => {
+                colorBtn.style.transform = 'scale(1)';
+            });
+            presetContainer.appendChild(colorBtn);
+        });
+
+        modal.appendChild(presetContainer);
+
+        // Custom color input
+        const customLabel = document.createElement('label');
+        customLabel.textContent = 'Custom Color:';
+        customLabel.style.cssText = 'display: block; margin-bottom: 8px; color: #DADADA; font-size: 12px;';
+        modal.appendChild(customLabel);
+
+        const colorInputContainer = document.createElement('div');
+        colorInputContainer.style.cssText = 'display: flex; gap: 10px; align-items: center; margin-bottom: 15px;';
+
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.value = currentColor;
+        colorInput.style.cssText = `
+            width: 60px;
+            height: 40px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: transparent;
+        `;
+
+        const hexInput = document.createElement('input');
+        hexInput.type = 'text';
+        hexInput.value = currentColor;
+        hexInput.placeholder = '#RRGGBB';
+        hexInput.style.cssText = `
+            flex: 1;
+            padding: 10px;
+            background: #35485E;
+            border: 1px solid #4A5F7F;
+            border-radius: 4px;
+            color: #FAFAFA;
+            font-size: 14px;
+            font-family: monospace;
+        `;
+
+        const previewBox = document.createElement('div');
+        previewBox.style.cssText = `
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            background: ${currentColor};
+            border: 2px solid #4A5F7F;
+        `;
+
+        colorInput.addEventListener('input', (e) => {
+            hexInput.value = e.target.value;
+            previewBox.style.backgroundColor = e.target.value;
+        });
+
+        hexInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                colorInput.value = value;
+                previewBox.style.backgroundColor = value;
+            }
+        });
+
+        colorInputContainer.appendChild(colorInput);
+        colorInputContainer.appendChild(hexInput);
+        colorInputContainer.appendChild(previewBox);
+        modal.appendChild(colorInputContainer);
+
+        // Reset to default button
+        const resetBtn = document.createElement('button');
+        resetBtn.textContent = '↺ Reset to Default';
+        resetBtn.style.cssText = `
+            width: 100%;
+            padding: 10px;
+            background: #35485E;
+            border: 1px solid #4A5F7F;
+            border-radius: 4px;
+            color: #FAFAFA;
+            font-size: 14px;
+            margin-bottom: 15px;
+            cursor: pointer;
+        `;
+        resetBtn.addEventListener('click', () => {
+            const defaultColor = getDefaultNodeColor(nodeData.type);
+            colorInput.value = defaultColor;
+            hexInput.value = defaultColor;
+            previewBox.style.backgroundColor = defaultColor;
+            presetContainer.querySelectorAll('button').forEach(btn => {
+                btn.style.borderColor = btn.style.backgroundColor === defaultColor ? '#FAFAFA' : 'transparent';
+            });
+        });
+        modal.appendChild(resetBtn);
+
+        // Button container
+        const btnContainer = document.createElement('div');
+        btnContainer.style.cssText = 'display: flex; gap: 10px;';
+
+        // Apply button
+        const applyBtn = document.createElement('button');
+        applyBtn.textContent = '✓ Apply';
+        applyBtn.style.cssText = `
+            flex: 1;
+            padding: 10px;
+            background: #00CAFF;
+            border: none;
+            border-radius: 4px;
+            color: #232F3E;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        `;
+        applyBtn.addEventListener('click', () => {
+            const newColor = hexInput.value;
+            applyNodeColor(nodeElement, nodeData, newColor);
+            saveToHistory();
+            overlay.remove();
+        });
+        btnContainer.appendChild(applyBtn);
+
+        // Cancel button
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.style.cssText = `
+            flex: 1;
+            padding: 10px;
+            background: #1E2222;
+            border: 1px solid #35485E;
+            border-radius: 4px;
+            color: #DADADA;
+            font-size: 14px;
+            cursor: pointer;
+        `;
+        cancelBtn.addEventListener('click', () => overlay.remove());
+        btnContainer.appendChild(cancelBtn);
+
+        modal.appendChild(btnContainer);
+        overlay.appendChild(modal);
+        
+        // Close on overlay click
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        document.body.appendChild(overlay);
+    }
+
+    /**
+     * Get the default color for a node type
+     * @param {string} type - Node type
+     * @returns {string} Default color hex
+     */
+    function getDefaultNodeColor(type) {
+        const defaultColors = {
+            node: '#4a9eff',
+            actor: '#9b59b6',
+            class: '#27ae60',
+            component: '#e67e22',
+            database: '#c0392b'
+        };
+        return defaultColors[type] || '#4a9eff';
+    }
+
+    /**
+     * Apply a color to a node
+     * @param {HTMLElement} nodeElement - The node DOM element
+     * @param {Object} nodeData - The node data object
+     * @param {string} color - The color to apply
+     */
+    function applyNodeColor(nodeElement, nodeData, color) {
+        const defaultColor = getDefaultNodeColor(nodeData.type);
+        
+        if (color === defaultColor) {
+            // Reset to default - remove custom color
+            nodeElement.style.backgroundColor = '';
+            delete nodeElement.dataset.customColor;
+            nodeData.customColor = null;
+        } else {
+            // Apply custom color
+            nodeElement.style.backgroundColor = color;
+            nodeElement.dataset.customColor = color;
+            nodeData.customColor = color;
+        }
+        
+        console.log('[PlantUML Visual Editor] Node color changed to:', color);
+    }
+
+    /**
+     * Darken a hex color by a percentage
+     * @param {string} hex - Hex color string (e.g., '#4a9eff')
+     * @param {number} percent - Percentage to darken (0-100)
+     * @returns {string} Darkened hex color
+     */
+    function darkenColor(hex, percent) {
+        // Remove # if present
+        hex = hex.replace('#', '');
+        
+        // Parse RGB values
+        let r = parseInt(hex.substring(0, 2), 16);
+        let g = parseInt(hex.substring(2, 4), 16);
+        let b = parseInt(hex.substring(4, 6), 16);
+        
+        // Darken
+        r = Math.max(0, Math.floor(r * (100 - percent) / 100));
+        g = Math.max(0, Math.floor(g * (100 - percent) / 100));
+        b = Math.max(0, Math.floor(b * (100 - percent) / 100));
+        
+        // Convert back to hex
+        return '#' +
+            r.toString(16).padStart(2, '0') +
+            g.toString(16).padStart(2, '0') +
+            b.toString(16).padStart(2, '0');
+    }
+
+    /**
      * Save diagram to localStorage
      */
     function saveDiagram() {
@@ -1505,7 +1852,8 @@
                     type: node.type,
                     label: node.element.querySelector('.plantuml-node-label').textContent,
                     left: node.element.style.left,
-                    top: node.element.style.top
+                    top: node.element.style.top,
+                    customColor: node.customColor || null
                 })),
                 connections: editorState.connections.map(conn => ({
                     from: conn.from,
@@ -1590,10 +1938,27 @@
                     removeNode(node);
                 });
 
+                // Add color button
+                const colorBtn = document.createElement('button');
+                colorBtn.className = 'plantuml-node-color';
+                colorBtn.textContent = '🎨';
+                colorBtn.title = 'Change color';
+                colorBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showNodeColorPicker(node);
+                });
+
                 node.appendChild(label);
+                node.appendChild(colorBtn);
                 node.appendChild(deleteBtn);
                 node.style.left = nodeData.left;
                 node.style.top = nodeData.top;
+
+                // Apply custom color if present
+                if (nodeData.customColor) {
+                    node.style.backgroundColor = nodeData.customColor;
+                    node.dataset.customColor = nodeData.customColor;
+                }
 
                 canvas.appendChild(node);
                 makeDraggableNode(node);
@@ -1609,7 +1974,8 @@
                 editorState.nodes.push({
                     id: node.dataset.id,
                     type: nodeData.type,
-                    element: node
+                    element: node,
+                    customColor: nodeData.customColor || null
                 });
             });
 
@@ -2248,11 +2614,15 @@
             const w = rect.width;
             const h = rect.height;
             
-            const colors = nodeColors[node.type] || nodeColors.node;
+            // Use custom color if set, otherwise use default type color
+            const defaultColors = nodeColors[node.type] || nodeColors.node;
+            const bgColor = node.customColor || defaultColors.bg;
+            // Darken the custom color for border, or use default border
+            const borderColor = node.customColor ? darkenColor(node.customColor, 20) : defaultColors.border;
             
             // Draw node background
-            ctx.fillStyle = colors.bg;
-            ctx.strokeStyle = colors.border;
+            ctx.fillStyle = bgColor;
+            ctx.strokeStyle = borderColor;
             ctx.lineWidth = 2;
             
             if (node.type === 'actor') {

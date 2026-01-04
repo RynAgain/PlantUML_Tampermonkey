@@ -452,6 +452,33 @@
                 display: block;
             }
 
+            .plantuml-node-color {
+                position: absolute;
+                top: -8px;
+                left: -8px;
+                background: #35485E;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 50%;
+                width: 18px;
+                height: 18px;
+                cursor: pointer;
+                font-size: 10px;
+                line-height: 1;
+                display: none;
+                padding: 0;
+            }
+
+            .plantuml-node-color:hover {
+                background: #4A5F7F;
+            }
+
+            .plantuml-node:hover .plantuml-node-color {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
             .plantuml-connection {
                 position: absolute;
                 pointer-events: none;
