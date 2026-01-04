@@ -1370,6 +1370,7 @@
     /**
      * Auto-layout nodes based on their connections using a force-directed algorithm
      * This arranges nodes so connected nodes are closer together and non-connected nodes spread out
+     * Takes into account actual node sizes to prevent overlapping
      */
     function autoLayoutNodes() {
         if (editorState.nodes.length === 0) {
@@ -1378,30 +1379,40 @@
         }
 
         const gridSize = editorState.gridSize;
-        const nodeSpacing = 120; // Minimum spacing between nodes
-        const iterations = 100; // Number of simulation iterations
+        const minNodeSpacing = 40; // Minimum gap between nodes (for arrows)
+        const iterations = 150; // Number of simulation iterations
         
-        // Build adjacency information
+        // Build adjacency information with actual node sizes
         const nodeMap = new Map();
         editorState.nodes.forEach((node, index) => {
+            const element = node.element;
+            const width = element.offsetWidth || 80;
+            const height = element.offsetHeight || 40;
+            
             nodeMap.set(node.id, {
                 index: index,
                 node: node,
-                x: parseInt(node.element.style.left) || 50 + index * 100,
-                y: parseInt(node.element.style.top) || 50,
+                x: parseInt(element.style.left) || 50 + index * 150,
+                y: parseInt(element.style.top) || 50,
+                width: width,
+                height: height,
                 vx: 0,
                 vy: 0,
-                connections: []
+                connections: [],
+                outgoing: [],
+                incoming: []
             });
         });
         
-        // Map connections
+        // Map connections with direction
         editorState.connections.forEach(conn => {
             const fromNode = nodeMap.get(conn.from);
             const toNode = nodeMap.get(conn.to);
             if (fromNode && toNode) {
                 fromNode.connections.push(conn.to);
+                fromNode.outgoing.push(conn.to);
                 toNode.connections.push(conn.from);
+                toNode.incoming.push(conn.from);
             }
         });
         
@@ -1437,10 +1448,10 @@
                 nodeLayer.set(n.node.id, layerIndex);
             });
             
-            // Find next layer (nodes connected from current layer)
+            // Find next layer (nodes connected from current layer via outgoing connections)
             const nextLayerSet = new Set();
             currentLayer.forEach(n => {
-                n.connections.forEach(connId => {
+                n.outgoing.forEach(connId => {
                     if (!visited.has(connId)) {
                         const connNode = nodeMap.get(connId);
                         if (connNode) {
@@ -1463,26 +1474,40 @@
             layers.push(remaining);
         }
         
+        // Calculate layer widths based on actual node sizes
+        const layerWidths = layers.map(layer => {
+            return Math.max(...layer.map(n => n.width));
+        });
+        
         // Position nodes based on layers (hierarchical layout)
         const startX = 60;
         const startY = 60;
-        const layerSpacing = 150; // Horizontal spacing between layers
-        const nodeVerticalSpacing = 100; // Vertical spacing between nodes in same layer
+        const arrowSpace = 60; // Space for arrows between layers
         
+        let currentX = startX;
         layers.forEach((layer, lIndex) => {
-            const layerHeight = layer.length * nodeVerticalSpacing;
-            const startYOffset = Math.max(startY, (400 - layerHeight) / 2); // Center vertically
+            // Calculate total height needed for this layer
+            const totalHeight = layer.reduce((sum, n) => sum + n.height + minNodeSpacing, 0) - minNodeSpacing;
+            let currentY = Math.max(startY, (500 - totalHeight) / 2); // Center vertically
             
-            layer.forEach((nodeData, nIndex) => {
-                nodeData.x = startX + lIndex * layerSpacing;
-                nodeData.y = startYOffset + nIndex * nodeVerticalSpacing;
+            layer.forEach((nodeData) => {
+                nodeData.x = currentX;
+                nodeData.y = currentY;
+                currentY += nodeData.height + minNodeSpacing;
             });
+            
+            // Move to next layer position
+            currentX += layerWidths[lIndex] + arrowSpace;
         });
         
         // Apply force-directed refinement for better spacing
-        const repulsionForce = 5000;
-        const attractionForce = 0.05;
-        const damping = 0.9;
+        // Use stronger repulsion to prevent overlap
+        const repulsionStrength = 8000;
+        const attractionStrength = 0.03;
+        const damping = 0.85;
+        const coolingFactor = 0.98; // Gradually reduce movement
+        
+        let temperature = 1.0;
         
         for (let i = 0; i < iterations; i++) {
             // Reset velocities
@@ -1491,20 +1516,48 @@
                 n.vy = 0;
             });
             
-            // Repulsion between all nodes
+            // Repulsion between all nodes - based on actual overlap
             for (let j = 0; j < nodes.length; j++) {
                 for (let k = j + 1; k < nodes.length; k++) {
                     const n1 = nodes[j];
                     const n2 = nodes[k];
                     
-                    const dx = n2.x - n1.x;
-                    const dy = n2.y - n1.y;
+                    // Calculate center-to-center distance
+                    const cx1 = n1.x + n1.width / 2;
+                    const cy1 = n1.y + n1.height / 2;
+                    const cx2 = n2.x + n2.width / 2;
+                    const cy2 = n2.y + n2.height / 2;
+                    
+                    const dx = cx2 - cx1;
+                    const dy = cy2 - cy1;
                     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                     
-                    if (dist < nodeSpacing * 2) {
-                        const force = repulsionForce / (dist * dist);
-                        const fx = (dx / dist) * force;
-                        const fy = (dy / dist) * force;
+                    // Calculate minimum distance to avoid overlap (including arrow space)
+                    const minDistX = (n1.width + n2.width) / 2 + minNodeSpacing;
+                    const minDistY = (n1.height + n2.height) / 2 + minNodeSpacing;
+                    const minDist = Math.sqrt(minDistX * minDistX + minDistY * minDistY) / 1.5;
+                    
+                    // Apply repulsion if nodes are too close
+                    if (dist < minDist * 1.5) {
+                        const force = repulsionStrength / (dist * dist);
+                        const fx = (dx / dist) * force * temperature;
+                        const fy = (dy / dist) * force * temperature;
+                        
+                        n1.vx -= fx;
+                        n1.vy -= fy;
+                        n2.vx += fx;
+                        n2.vy += fy;
+                    }
+                    
+                    // Extra strong repulsion if actually overlapping
+                    const overlapX = (n1.width + n2.width) / 2 + minNodeSpacing - Math.abs(dx);
+                    const overlapY = (n1.height + n2.height) / 2 + minNodeSpacing - Math.abs(dy);
+                    
+                    if (overlapX > 0 && overlapY > 0) {
+                        // Nodes are overlapping - apply strong separation force
+                        const separationForce = 50;
+                        const fx = (dx === 0 ? (Math.random() - 0.5) : dx / Math.abs(dx)) * separationForce;
+                        const fy = (dy === 0 ? (Math.random() - 0.5) : dy / Math.abs(dy)) * separationForce;
                         
                         n1.vx -= fx;
                         n1.vy -= fy;
@@ -1520,13 +1573,21 @@
                 const n2 = nodeMap.get(conn.to);
                 
                 if (n1 && n2) {
-                    const dx = n2.x - n1.x;
-                    const dy = n2.y - n1.y;
+                    const cx1 = n1.x + n1.width / 2;
+                    const cy1 = n1.y + n1.height / 2;
+                    const cx2 = n2.x + n2.width / 2;
+                    const cy2 = n2.y + n2.height / 2;
+                    
+                    const dx = cx2 - cx1;
+                    const dy = cy2 - cy1;
                     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                     
+                    // Ideal distance for connected nodes (enough space for arrow)
+                    const idealDist = (n1.width + n2.width) / 2 + arrowSpace;
+                    
                     // Only apply attraction if nodes are far apart
-                    if (dist > nodeSpacing) {
-                        const force = (dist - nodeSpacing) * attractionForce;
+                    if (dist > idealDist) {
+                        const force = (dist - idealDist) * attractionStrength * temperature;
                         const fx = (dx / dist) * force;
                         const fy = (dy / dist) * force;
                         
@@ -1547,12 +1608,56 @@
                 n.x = Math.max(20, n.x);
                 n.y = Math.max(20, n.y);
             });
+            
+            // Cool down
+            temperature *= coolingFactor;
+        }
+        
+        // Final overlap resolution pass
+        for (let pass = 0; pass < 10; pass++) {
+            let hasOverlap = false;
+            
+            for (let j = 0; j < nodes.length; j++) {
+                for (let k = j + 1; k < nodes.length; k++) {
+                    const n1 = nodes[j];
+                    const n2 = nodes[k];
+                    
+                    const overlapX = (n1.width + n2.width) / 2 + minNodeSpacing - Math.abs((n1.x + n1.width/2) - (n2.x + n2.width/2));
+                    const overlapY = (n1.height + n2.height) / 2 + minNodeSpacing - Math.abs((n1.y + n1.height/2) - (n2.y + n2.height/2));
+                    
+                    if (overlapX > 0 && overlapY > 0) {
+                        hasOverlap = true;
+                        // Push apart in the direction of least overlap
+                        if (overlapX < overlapY) {
+                            const pushX = overlapX / 2 + 5;
+                            if (n1.x < n2.x) {
+                                n1.x -= pushX;
+                                n2.x += pushX;
+                            } else {
+                                n1.x += pushX;
+                                n2.x -= pushX;
+                            }
+                        } else {
+                            const pushY = overlapY / 2 + 5;
+                            if (n1.y < n2.y) {
+                                n1.y -= pushY;
+                                n2.y += pushY;
+                            } else {
+                                n1.y += pushY;
+                                n2.y -= pushY;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (!hasOverlap) break;
         }
         
         // Snap to grid and apply positions
         nodes.forEach(nodeData => {
-            const snappedX = Math.round(nodeData.x / gridSize) * gridSize;
-            const snappedY = Math.round(nodeData.y / gridSize) * gridSize;
+            const snappedX = Math.round(Math.max(20, nodeData.x) / gridSize) * gridSize;
+            const snappedY = Math.round(Math.max(20, nodeData.y) / gridSize) * gridSize;
             
             nodeData.node.element.style.left = snappedX + 'px';
             nodeData.node.element.style.top = snappedY + 'px';
@@ -1567,7 +1672,7 @@
             btn.textContent = originalText;
         }, 1500);
         
-        console.log('[PlantUML Visual Editor] Auto-layout applied (' + layers.length + ' layers)');
+        console.log('[PlantUML Visual Editor] Auto-layout applied (' + layers.length + ' layers, ' + nodes.length + ' nodes)');
     }
 
     /**

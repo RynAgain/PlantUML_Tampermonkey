@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PlantUML Helper - Reference Guide & GUI Aid (Modular)
 // @namespace    http://tampermonkey.net/
-// @version      3.4.1
+// @version      3.4.2
 // @description  Visual diagram editor with pan & zoom, full page mode, toggleable grid, auto-layout, PNG export, arrow direction control, connection editing, and node ordering - now a standalone diagramming tool!
 // @author       RynAgain
 // @match        *://*/*
@@ -21,7 +21,7 @@
     'use strict';
 
     console.log('PlantUML Helper (Modular) - Main script started');
-    console.log('Version: 3.4.1 - Auto-layout feature, seamless grid, Ctrl+drag to pan');
+    console.log('Version: 3.4.2 - Improved auto-layout with overlap prevention');
 
     // All modules are loaded via @require directives and self-initialize
     // The loading order is:
