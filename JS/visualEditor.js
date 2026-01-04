@@ -18,6 +18,7 @@
         currentArrowType: '->',  // Default arrow type
         isFullPage: false,       // Full page mode
         gridSize: 20,            // Grid size for snap
+        showGrid: true,          // Show grid on canvas
         // Pan and zoom state
         zoom: 1,                 // Current zoom level (1 = 100%)
         minZoom: 0.25,           // Minimum zoom (25%)
@@ -82,7 +83,8 @@
                         <option value="<<-">⇇ Async Left (<<-)</option>
                     </select>
                     <button class="plantuml-editor-btn secondary" id="manage-nodes">📋 Nodes</button>
-                    <button class="plantuml-editor-btn secondary" id="snap-to-grid">📐 Snap Grid</button>
+                    <button class="plantuml-editor-btn secondary" id="snap-to-grid">📐 Snap</button>
+                    <button class="plantuml-editor-btn secondary active" id="toggle-grid">▦ Grid</button>
                     <button class="plantuml-editor-btn secondary" id="full-page-mode">⛶ Full Page</button>
                     <button class="plantuml-editor-btn" id="export-png">📷 Export PNG</button>
                 </div>
@@ -100,7 +102,7 @@
                     <div class="plantuml-canvas-viewport" id="canvas-viewport">
                         <svg class="plantuml-connection" id="connection-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
                         </svg>
-                        <div class="plantuml-canvas" id="plantuml-canvas"></div>
+                        <div class="plantuml-canvas show-grid" id="plantuml-canvas"></div>
                     </div>
                 </div>
 
@@ -159,6 +161,9 @@
         // Snap to grid
         document.getElementById('snap-to-grid')?.addEventListener('click', snapNodesToGrid);
 
+        // Toggle grid
+        document.getElementById('toggle-grid')?.addEventListener('click', toggleGrid);
+
         // Full page mode
         document.getElementById('full-page-mode')?.addEventListener('click', toggleFullPageMode);
 
@@ -188,6 +193,9 @@
         canvasContainer?.addEventListener('mousedown', handlePanStart);
         document.addEventListener('mousemove', handlePanMove);
         document.addEventListener('mouseup', handlePanEnd);
+
+        // Load persisted settings
+        loadPersistedSettings();
 
         // Try to load saved diagram
         tryLoadSavedDiagram();
@@ -250,6 +258,7 @@
 
     /**
      * Make a node draggable
+     * Accounts for zoom level when calculating drag distance
      * @param {HTMLElement} node - Node element to make draggable
      */
     function makeDraggableNode(node) {
@@ -259,6 +268,8 @@
 
         function dragMouseDown(e) {
             if (e.target.contentEditable === 'true') return;
+            // Don't start drag if we're in panning mode
+            if (e.shiftKey) return;
             e.preventDefault();
             e.stopPropagation();
             pos3 = e.clientX;
@@ -269,12 +280,19 @@
 
         function elementDrag(e) {
             e.preventDefault();
-            pos1 = pos3 - e.clientX;
-            pos2 = pos4 - e.clientY;
+            // Calculate delta in screen coordinates
+            const deltaX = e.clientX - pos3;
+            const deltaY = e.clientY - pos4;
             pos3 = e.clientX;
             pos4 = e.clientY;
-            node.style.top = (node.offsetTop - pos2) + "px";
-            node.style.left = (node.offsetLeft - pos1) + "px";
+            
+            // Adjust delta by zoom level - divide by zoom to get actual canvas movement
+            const adjustedDeltaX = deltaX / editorState.zoom;
+            const adjustedDeltaY = deltaY / editorState.zoom;
+            
+            // Apply adjusted movement
+            node.style.top = (node.offsetTop + adjustedDeltaY) + "px";
+            node.style.left = (node.offsetLeft + adjustedDeltaX) + "px";
             updateConnections();
         }
 
@@ -419,19 +437,23 @@
 
     /**
      * Update all connection lines on the canvas
+     * Uses node positions (style.left/top) instead of getBoundingClientRect
+     * to work correctly with zoom/pan transforms
      */
     function updateConnections() {
         const svg = document.getElementById('connection-svg');
         const canvas = document.getElementById('plantuml-canvas');
         if (!svg || !canvas) return;
 
-        // Calculate the required size based on all nodes
+        // Calculate the required size based on all nodes using their actual positions
         let maxX = 250, maxY = 250;
         editorState.nodes.forEach(node => {
-            const rect = node.element.getBoundingClientRect();
-            const canvasRect = canvas.getBoundingClientRect();
-            const right = rect.left - canvasRect.left + rect.width + 20;
-            const bottom = rect.top - canvasRect.top + rect.height + 20;
+            const left = parseInt(node.element.style.left) || 0;
+            const top = parseInt(node.element.style.top) || 0;
+            const width = node.element.offsetWidth;
+            const height = node.element.offsetHeight;
+            const right = left + width + 20;
+            const bottom = top + height + 20;
             maxX = Math.max(maxX, right);
             maxY = Math.max(maxY, bottom);
         });
@@ -481,19 +503,27 @@
         svg.appendChild(defs);
 
         editorState.connections.forEach((conn, index) => {
-            const fromRect = conn.fromElement.getBoundingClientRect();
-            const toRect = conn.toElement.getBoundingClientRect();
-            const canvasRect = document.getElementById('plantuml-canvas').getBoundingClientRect();
+            // Use actual node positions instead of getBoundingClientRect
+            // This ensures connections work correctly with zoom/pan
+            const fromLeft = parseInt(conn.fromElement.style.left) || 0;
+            const fromTop = parseInt(conn.fromElement.style.top) || 0;
+            const fromWidth = conn.fromElement.offsetWidth;
+            const fromHeight = conn.fromElement.offsetHeight;
+            
+            const toLeft = parseInt(conn.toElement.style.left) || 0;
+            const toTop = parseInt(conn.toElement.style.top) || 0;
+            const toWidth = conn.toElement.offsetWidth;
+            const toHeight = conn.toElement.offsetHeight;
 
             // Calculate centers
-            const fromCX = fromRect.left - canvasRect.left + fromRect.width / 2;
-            const fromCY = fromRect.top - canvasRect.top + fromRect.height / 2;
-            const toCX = toRect.left - canvasRect.left + toRect.width / 2;
-            const toCY = toRect.top - canvasRect.top + toRect.height / 2;
+            const fromCX = fromLeft + fromWidth / 2;
+            const fromCY = fromTop + fromHeight / 2;
+            const toCX = toLeft + toWidth / 2;
+            const toCY = toTop + toHeight / 2;
             
             // Calculate edge intersection points (so arrows don't go through nodes)
-            const fromEdge = getEdgeIntersection(fromCX, fromCY, fromRect.width, fromRect.height, toCX, toCY);
-            const toEdge = getEdgeIntersection(toCX, toCY, toRect.width, toRect.height, fromCX, fromCY);
+            const fromEdge = getEdgeIntersection(fromCX, fromCY, fromWidth, fromHeight, toCX, toCY);
+            const toEdge = getEdgeIntersection(toCX, toCY, toWidth, toHeight, fromCX, fromCY);
 
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('x1', fromEdge.x);
@@ -1398,6 +1428,9 @@
             console.log('[PlantUML Visual Editor] Exited full page mode');
         }
         
+        // Persist the setting
+        savePersistedSettings();
+        
         // Update connections after resize
         setTimeout(updateConnections, 100);
     }
@@ -1848,6 +1881,101 @@
         }
         
         console.log('[PlantUML Visual Editor] View fitted to content');
+    }
+
+    /**
+     * Toggle grid visibility on the canvas
+     */
+    function toggleGrid() {
+        editorState.showGrid = !editorState.showGrid;
+        const btn = document.getElementById('toggle-grid');
+        const canvas = document.getElementById('plantuml-canvas');
+        
+        if (editorState.showGrid) {
+            btn.classList.add('active');
+            btn.textContent = '▦ Grid';
+            canvas?.classList.add('show-grid');
+        } else {
+            btn.classList.remove('active');
+            btn.textContent = '▢ Grid';
+            canvas?.classList.remove('show-grid');
+        }
+        
+        // Persist the setting
+        savePersistedSettings();
+        
+        console.log('[PlantUML Visual Editor] Grid visibility:', editorState.showGrid);
+    }
+
+    /**
+     * Load persisted settings from storage
+     */
+    function loadPersistedSettings() {
+        try {
+            let settingsStr;
+            if (typeof GM_getValue !== 'undefined') {
+                settingsStr = GM_getValue('plantUMLSettings', null);
+            } else {
+                settingsStr = localStorage.getItem('plantUMLSettings');
+            }
+
+            if (settingsStr) {
+                const settings = JSON.parse(settingsStr);
+                
+                // Apply full page mode if it was enabled
+                if (settings.isFullPage) {
+                    // Delay to ensure DOM is ready
+                    setTimeout(() => {
+                        if (!editorState.isFullPage) {
+                            toggleFullPageMode();
+                        }
+                    }, 100);
+                }
+                
+                // Apply grid visibility
+                if (settings.showGrid !== undefined) {
+                    editorState.showGrid = settings.showGrid;
+                    const btn = document.getElementById('toggle-grid');
+                    const canvas = document.getElementById('plantuml-canvas');
+                    
+                    if (editorState.showGrid) {
+                        btn?.classList.add('active');
+                        if (btn) btn.textContent = '▦ Grid';
+                        canvas?.classList.add('show-grid');
+                    } else {
+                        btn?.classList.remove('active');
+                        if (btn) btn.textContent = '▢ Grid';
+                        canvas?.classList.remove('show-grid');
+                    }
+                }
+                
+                console.log('[PlantUML Visual Editor] Settings loaded:', settings);
+            }
+        } catch (error) {
+            console.error('[PlantUML Visual Editor] Error loading settings:', error);
+        }
+    }
+
+    /**
+     * Save persisted settings to storage
+     */
+    function savePersistedSettings() {
+        try {
+            const settings = {
+                isFullPage: editorState.isFullPage,
+                showGrid: editorState.showGrid
+            };
+
+            if (typeof GM_setValue !== 'undefined') {
+                GM_setValue('plantUMLSettings', JSON.stringify(settings));
+            } else {
+                localStorage.setItem('plantUMLSettings', JSON.stringify(settings));
+            }
+            
+            console.log('[PlantUML Visual Editor] Settings saved:', settings);
+        } catch (error) {
+            console.error('[PlantUML Visual Editor] Error saving settings:', error);
+        }
     }
 
     // Export for testing
