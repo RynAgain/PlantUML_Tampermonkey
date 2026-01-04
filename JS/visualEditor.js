@@ -27,7 +27,11 @@
         panY: 0,                 // Pan offset Y
         isPanning: false,        // Is currently panning
         panStartX: 0,            // Pan start position X
-        panStartY: 0             // Pan start position Y
+        panStartY: 0,            // Pan start position Y
+        // Undo/Redo state
+        history: [],             // Stack of past states
+        historyIndex: -1,        // Current position in history
+        maxHistory: 50           // Maximum history entries
     };
 
     // Make editor functions globally accessible
@@ -203,6 +207,255 @@
 
         // Try to load saved diagram
         tryLoadSavedDiagram();
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', handleKeyboardShortcuts);
+        
+        // Save initial state to history for undo
+        saveToHistory();
+    }
+
+    /**
+     * Handle keyboard shortcuts for the editor
+     * @param {KeyboardEvent} e - Keyboard event
+     */
+    function handleKeyboardShortcuts(e) {
+        // Only handle shortcuts when the panel is visible
+        const panel = document.getElementById('plantuml-helper-panel');
+        if (!panel || !panel.classList.contains('visible')) return;
+        
+        // Don't handle shortcuts when typing in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.contentEditable === 'true') {
+            return;
+        }
+        
+        // Delete key - remove selected node
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (editorState.selectedNode) {
+                e.preventDefault();
+                removeNode(editorState.selectedNode);
+                editorState.selectedNode = null;
+            }
+        }
+        
+        // Escape key - cancel connection mode, deselect node
+        if (e.key === 'Escape') {
+            if (editorState.connectionMode) {
+                toggleConnectionMode();
+            }
+            if (editorState.selectedNode) {
+                editorState.selectedNode.classList.remove('selected');
+                editorState.selectedNode = null;
+            }
+        }
+        
+        // Arrow keys - nudge selected node
+        if (editorState.selectedNode && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+            const node = editorState.selectedNode;
+            const nudgeAmount = e.shiftKey ? editorState.gridSize : 5; // Shift for larger nudge
+            
+            let left = parseInt(node.style.left) || 0;
+            let top = parseInt(node.style.top) || 0;
+            
+            switch (e.key) {
+                case 'ArrowUp':
+                    top -= nudgeAmount;
+                    break;
+                case 'ArrowDown':
+                    top += nudgeAmount;
+                    break;
+                case 'ArrowLeft':
+                    left -= nudgeAmount;
+                    break;
+                case 'ArrowRight':
+                    left += nudgeAmount;
+                    break;
+            }
+            
+            // Keep within bounds
+            left = Math.max(0, left);
+            top = Math.max(0, top);
+            
+            node.style.left = left + 'px';
+            node.style.top = top + 'px';
+            updateConnections();
+        }
+        
+        // Ctrl+Z - undo
+        if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+            e.preventDefault();
+            undo();
+        }
+        
+        // Ctrl+Y or Ctrl+Shift+Z - redo
+        if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
+            e.preventDefault();
+            redo();
+        }
+    }
+
+    /**
+     * Save current state to history for undo/redo
+     */
+    function saveToHistory() {
+        // Create a snapshot of current state
+        const snapshot = {
+            nodeCounter: editorState.nodeCounter,
+            diagramType: editorState.diagramType,
+            nodes: editorState.nodes.map(node => ({
+                id: node.id,
+                type: node.type,
+                label: node.element.querySelector('.plantuml-node-label').textContent,
+                left: node.element.style.left,
+                top: node.element.style.top,
+                customColor: node.customColor || null
+            })),
+            connections: editorState.connections.map(conn => ({
+                from: conn.from,
+                to: conn.to,
+                arrowType: conn.arrowType || '->',
+                label: conn.label || 'Message'
+            }))
+        };
+        
+        // Remove any future states if we're not at the end
+        if (editorState.historyIndex < editorState.history.length - 1) {
+            editorState.history = editorState.history.slice(0, editorState.historyIndex + 1);
+        }
+        
+        // Add new state
+        editorState.history.push(snapshot);
+        editorState.historyIndex = editorState.history.length - 1;
+        
+        // Limit history size
+        if (editorState.history.length > editorState.maxHistory) {
+            editorState.history.shift();
+            editorState.historyIndex--;
+        }
+        
+        console.log('[PlantUML Visual Editor] State saved to history (index: ' + editorState.historyIndex + ')');
+    }
+
+    /**
+     * Restore state from a history snapshot
+     * @param {Object} snapshot - The state snapshot to restore
+     */
+    function restoreFromSnapshot(snapshot) {
+        // Clear current state
+        const canvas = document.getElementById('plantuml-canvas');
+        if (canvas) {
+            canvas.innerHTML = '';
+        }
+        editorState.nodes = [];
+        editorState.connections = [];
+        editorState.selectedNode = null;
+        
+        // Restore state
+        editorState.nodeCounter = snapshot.nodeCounter;
+        editorState.diagramType = snapshot.diagramType;
+        
+        // Update diagram type selector
+        const typeSelect = document.getElementById('diagram-type');
+        if (typeSelect) {
+            typeSelect.value = snapshot.diagramType;
+        }
+        
+        // Recreate nodes
+        snapshot.nodes.forEach(nodeData => {
+            if (!canvas) return;
+            
+            const node = document.createElement('div');
+            node.className = `plantuml-node ${nodeData.type}`;
+            node.dataset.id = nodeData.id;
+            node.dataset.type = nodeData.type;
+            
+            const label = document.createElement('div');
+            label.className = 'plantuml-node-label';
+            label.contentEditable = true;
+            label.textContent = nodeData.label;
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'plantuml-node-delete';
+            deleteBtn.textContent = '×';
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeNode(node);
+            });
+            
+            node.appendChild(label);
+            node.appendChild(deleteBtn);
+            node.style.left = nodeData.left;
+            node.style.top = nodeData.top;
+            
+            canvas.appendChild(node);
+            makeDraggableNode(node);
+            
+            node.addEventListener('click', (e) => {
+                if (editorState.connectionMode) {
+                    handleNodeConnectionClick(node);
+                } else {
+                    selectNode(node);
+                }
+            });
+            
+            editorState.nodes.push({
+                id: nodeData.id,
+                type: nodeData.type,
+                element: node
+            });
+        });
+        
+        // Recreate connections
+        snapshot.connections.forEach(connData => {
+            const fromNode = editorState.nodes.find(n => n.id === connData.from);
+            const toNode = editorState.nodes.find(n => n.id === connData.to);
+            
+            if (fromNode && toNode) {
+                editorState.connections.push({
+                    from: connData.from,
+                    to: connData.to,
+                    fromElement: fromNode.element,
+                    toElement: toNode.element,
+                    arrowType: connData.arrowType || '->',
+                    label: connData.label || 'Message'
+                });
+            }
+        });
+        
+        updateConnections();
+    }
+
+    /**
+     * Undo the last action
+     */
+    function undo() {
+        if (editorState.historyIndex <= 0) {
+            console.log('[PlantUML Visual Editor] Nothing to undo');
+            return;
+        }
+        
+        editorState.historyIndex--;
+        const snapshot = editorState.history[editorState.historyIndex];
+        restoreFromSnapshot(snapshot);
+        
+        console.log('[PlantUML Visual Editor] Undo (index: ' + editorState.historyIndex + ')');
+    }
+
+    /**
+     * Redo the last undone action
+     */
+    function redo() {
+        if (editorState.historyIndex >= editorState.history.length - 1) {
+            console.log('[PlantUML Visual Editor] Nothing to redo');
+            return;
+        }
+        
+        editorState.historyIndex++;
+        const snapshot = editorState.history[editorState.historyIndex];
+        restoreFromSnapshot(snapshot);
+        
+        console.log('[PlantUML Visual Editor] Redo (index: ' + editorState.historyIndex + ')');
     }
 
     /**
@@ -258,6 +511,9 @@
             type: type,
             element: node
         });
+        
+        // Save to history for undo
+        saveToHistory();
     }
 
     /**
@@ -334,6 +590,9 @@
         // Remove from DOM
         node.remove();
         updateConnections();
+        
+        // Save to history for undo
+        saveToHistory();
     }
 
     /**
@@ -385,11 +644,15 @@
             to: toNode.dataset.id,
             fromElement: fromNode,
             toElement: toNode,
-            arrowType: editorState.currentArrowType  // Store the arrow type
+            arrowType: editorState.currentArrowType,  // Store the arrow type
+            label: 'Message'  // Default label for the connection
         };
 
         editorState.connections.push(connection);
         updateConnections();
+        
+        // Save to history for undo
+        saveToHistory();
         
         console.log('[PlantUML Visual Editor] Connection created with arrow type:', editorState.currentArrowType);
     }
@@ -568,6 +831,39 @@
             });
 
             svg.appendChild(line);
+            
+            // Add label text on the connection
+            const label = conn.label || 'Message';
+            if (label) {
+                // Calculate midpoint of the line
+                const midX = (fromEdge.x + toEdge.x) / 2;
+                const midY = (fromEdge.y + toEdge.y) / 2;
+                
+                // Create text element for label
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', midX);
+                text.setAttribute('y', midY - 8); // Offset above the line
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('fill', '#FAFAFA');
+                text.setAttribute('font-size', '11');
+                text.setAttribute('font-family', 'Segoe UI, sans-serif');
+                text.setAttribute('pointer-events', 'none');
+                text.textContent = label;
+                
+                // Add background for better readability
+                const bbox = { width: label.length * 7, height: 14 }; // Approximate
+                const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                bg.setAttribute('x', midX - bbox.width / 2 - 4);
+                bg.setAttribute('y', midY - 8 - bbox.height + 2);
+                bg.setAttribute('width', bbox.width + 8);
+                bg.setAttribute('height', bbox.height + 2);
+                bg.setAttribute('fill', '#232F3E');
+                bg.setAttribute('rx', '3');
+                bg.setAttribute('pointer-events', 'none');
+                
+                svg.appendChild(bg);
+                svg.appendChild(text);
+            }
         });
     }
 
@@ -594,6 +890,11 @@
             const outputCode = document.getElementById('output-code');
             if (outputCode) {
                 outputCode.textContent = 'Click "Generate Code" to create PlantUML from your diagram...';
+            }
+            
+            // Save to history for undo (unless skipping confirm, which means it's a load operation)
+            if (!skipConfirm) {
+                saveToHistory();
             }
         }
     }
@@ -659,7 +960,8 @@
             const fromAlias = sanitizePlantUMLAlias(conn.from);
             const toAlias = sanitizePlantUMLAlias(conn.to);
             const arrowType = conn.arrowType || '->';
-            code += `${fromAlias} ${arrowType} ${toAlias}: Message\n`;
+            const label = sanitizePlantUMLLabel(conn.label || 'Message');
+            code += `${fromAlias} ${arrowType} ${toAlias}: ${label}\n`;
         });
 
         return code;
@@ -1013,6 +1315,29 @@
         info.style.cssText = 'margin: 0 0 15px 0; font-size: 14px; color: #DADADA;';
         modal.appendChild(info);
 
+        // Label input
+        const labelLabel = document.createElement('label');
+        labelLabel.textContent = 'Label/Message:';
+        labelLabel.style.cssText = 'display: block; margin-bottom: 8px; color: #DADADA; font-size: 12px;';
+        modal.appendChild(labelLabel);
+
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.value = conn.label || 'Message';
+        labelInput.style.cssText = `
+            width: 100%;
+            padding: 10px;
+            background: #35485E;
+            border: 1px solid #4A5F7F;
+            border-radius: 4px;
+            color: #FAFAFA;
+            font-size: 14px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+        `;
+        labelInput.placeholder = 'Enter connection label...';
+        modal.appendChild(labelInput);
+
         // Arrow type selector
         const selectorLabel = document.createElement('label');
         selectorLabel.textContent = 'Arrow Type:';
@@ -1084,6 +1409,7 @@
             info.innerHTML = `<strong>${newFromLabel}</strong> → <strong>${newToLabel}</strong>`;
             
             updateConnections();
+            saveToHistory();
         });
         modal.appendChild(swapBtn);
 
@@ -1107,7 +1433,9 @@
         `;
         saveBtn.addEventListener('click', () => {
             conn.arrowType = select.value;
+            conn.label = labelInput.value || 'Message';
             updateConnections();
+            saveToHistory();
             overlay.remove();
         });
         btnContainer.appendChild(saveBtn);
@@ -1129,6 +1457,7 @@
             if (confirm('Delete this connection?')) {
                 editorState.connections.splice(index, 1);
                 updateConnections();
+                saveToHistory();
                 overlay.remove();
             }
         });
@@ -1181,7 +1510,8 @@
                 connections: editorState.connections.map(conn => ({
                     from: conn.from,
                     to: conn.to,
-                    arrowType: conn.arrowType || '->'
+                    arrowType: conn.arrowType || '->',
+                    label: conn.label || 'Message'
                 }))
             };
 
@@ -1294,7 +1624,8 @@
                         to: connData.to,
                         fromElement: fromNode.element,
                         toElement: toNode.element,
-                        arrowType: connData.arrowType || '->'
+                        arrowType: connData.arrowType || '->',
+                        label: connData.label || 'Message'
                     });
                 }
             });
