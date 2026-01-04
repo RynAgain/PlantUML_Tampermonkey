@@ -293,17 +293,52 @@
                 background: #34581B;
             }
 
+            /* Zoom Controls */
+            .plantuml-zoom-controls {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                padding: 8px;
+                background: #1E2222;
+                border-radius: 4px;
+                flex-wrap: wrap;
+            }
+
+            .plantuml-zoom-level {
+                color: #00CAFF;
+                font-size: 12px;
+                font-weight: 600;
+                min-width: 45px;
+                text-align: center;
+            }
+
+            .plantuml-pan-hint {
+                color: #DADADA;
+                font-size: 10px;
+                margin-left: auto;
+                opacity: 0.7;
+            }
+
             .plantuml-canvas-container {
                 background: #0F0F0F;
                 border: 2px solid #35485E;
                 border-radius: 4px;
                 min-height: 250px;
                 position: relative;
-                overflow: visible;
+                overflow: hidden;
+            }
+
+            .plantuml-canvas-viewport {
+                position: relative;
+                width: 2000px;
+                height: 2000px;
+                transform-origin: 0 0;
+                transition: none;
             }
 
             .plantuml-canvas {
                 width: 100%;
+                height: 100%;
                 min-height: 250px;
                 position: relative;
                 z-index: 1;

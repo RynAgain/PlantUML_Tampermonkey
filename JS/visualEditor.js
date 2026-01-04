@@ -17,7 +17,16 @@
         connectionStart: null,
         currentArrowType: '->',  // Default arrow type
         isFullPage: false,       // Full page mode
-        gridSize: 20             // Grid size for snap
+        gridSize: 20,            // Grid size for snap
+        // Pan and zoom state
+        zoom: 1,                 // Current zoom level (1 = 100%)
+        minZoom: 0.25,           // Minimum zoom (25%)
+        maxZoom: 3,              // Maximum zoom (300%)
+        panX: 0,                 // Pan offset X
+        panY: 0,                 // Pan offset Y
+        isPanning: false,        // Is currently panning
+        panStartX: 0,            // Pan start position X
+        panStartY: 0             // Pan start position Y
     };
 
     // Make editor functions globally accessible
@@ -78,10 +87,21 @@
                     <button class="plantuml-editor-btn" id="export-png">📷 Export PNG</button>
                 </div>
 
-                <div class="plantuml-canvas-container">
-                    <svg class="plantuml-connection" id="connection-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
-                    </svg>
-                    <div class="plantuml-canvas" id="plantuml-canvas"></div>
+                <div class="plantuml-zoom-controls">
+                    <button class="plantuml-editor-btn secondary" id="zoom-out" title="Zoom Out">−</button>
+                    <span class="plantuml-zoom-level" id="zoom-level">100%</span>
+                    <button class="plantuml-editor-btn secondary" id="zoom-in" title="Zoom In">+</button>
+                    <button class="plantuml-editor-btn secondary" id="zoom-reset" title="Reset View">⟲ Reset</button>
+                    <button class="plantuml-editor-btn secondary" id="zoom-fit" title="Fit to View">⊡ Fit</button>
+                    <span class="plantuml-pan-hint">Hold Shift + drag to pan</span>
+                </div>
+
+                <div class="plantuml-canvas-container" id="canvas-container">
+                    <div class="plantuml-canvas-viewport" id="canvas-viewport">
+                        <svg class="plantuml-connection" id="connection-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                        </svg>
+                        <div class="plantuml-canvas" id="plantuml-canvas"></div>
+                    </div>
                 </div>
 
                 <div class="plantuml-editor-toolbar">
@@ -153,6 +173,21 @@
         document.getElementById('diagram-type')?.addEventListener('change', (e) => {
             editorState.diagramType = e.target.value;
         });
+
+        // Zoom controls
+        document.getElementById('zoom-in')?.addEventListener('click', () => zoomCanvas(0.25));
+        document.getElementById('zoom-out')?.addEventListener('click', () => zoomCanvas(-0.25));
+        document.getElementById('zoom-reset')?.addEventListener('click', resetView);
+        document.getElementById('zoom-fit')?.addEventListener('click', fitToView);
+
+        // Mouse wheel zoom on canvas container
+        const canvasContainer = document.getElementById('canvas-container');
+        canvasContainer?.addEventListener('wheel', handleWheelZoom, { passive: false });
+
+        // Pan functionality (Shift + drag or middle mouse button)
+        canvasContainer?.addEventListener('mousedown', handlePanStart);
+        document.addEventListener('mousemove', handlePanMove);
+        document.addEventListener('mouseup', handlePanEnd);
 
         // Try to load saved diagram
         tryLoadSavedDiagram();
@@ -1587,6 +1622,232 @@
         }, 2000);
         
         console.log('[PlantUML Visual Editor] Diagram exported as PNG');
+    }
+
+    /**
+     * Zoom the canvas by a delta amount
+     * @param {number} delta - Amount to zoom (positive = zoom in, negative = zoom out)
+     */
+    function zoomCanvas(delta) {
+        const newZoom = Math.max(editorState.minZoom, Math.min(editorState.maxZoom, editorState.zoom + delta));
+        
+        if (newZoom !== editorState.zoom) {
+            editorState.zoom = newZoom;
+            applyViewTransform();
+            updateZoomDisplay();
+            console.log('[PlantUML Visual Editor] Zoom level:', Math.round(newZoom * 100) + '%');
+        }
+    }
+
+    /**
+     * Set zoom to a specific level
+     * @param {number} level - Zoom level (1 = 100%)
+     */
+    function setZoom(level) {
+        editorState.zoom = Math.max(editorState.minZoom, Math.min(editorState.maxZoom, level));
+        applyViewTransform();
+        updateZoomDisplay();
+    }
+
+    /**
+     * Handle mouse wheel zoom
+     * @param {WheelEvent} e - Wheel event
+     */
+    function handleWheelZoom(e) {
+        // Only zoom if Ctrl is held or if it's a pinch gesture
+        if (!e.ctrlKey && !e.metaKey) return;
+        
+        e.preventDefault();
+        
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const newZoom = Math.max(editorState.minZoom, Math.min(editorState.maxZoom, editorState.zoom + delta));
+        
+        if (newZoom !== editorState.zoom) {
+            // Get mouse position relative to canvas container
+            const container = document.getElementById('canvas-container');
+            const rect = container.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // Calculate the point under the mouse in canvas coordinates
+            const canvasX = (mouseX - editorState.panX) / editorState.zoom;
+            const canvasY = (mouseY - editorState.panY) / editorState.zoom;
+            
+            // Update zoom
+            editorState.zoom = newZoom;
+            
+            // Adjust pan to keep the point under the mouse
+            editorState.panX = mouseX - canvasX * newZoom;
+            editorState.panY = mouseY - canvasY * newZoom;
+            
+            applyViewTransform();
+            updateZoomDisplay();
+        }
+    }
+
+    /**
+     * Handle pan start (Shift + drag or middle mouse button)
+     * @param {MouseEvent} e - Mouse event
+     */
+    function handlePanStart(e) {
+        // Start panning with Shift + left click or middle mouse button
+        if ((e.shiftKey && e.button === 0) || e.button === 1) {
+            e.preventDefault();
+            editorState.isPanning = true;
+            editorState.panStartX = e.clientX - editorState.panX;
+            editorState.panStartY = e.clientY - editorState.panY;
+            
+            const container = document.getElementById('canvas-container');
+            if (container) {
+                container.style.cursor = 'grabbing';
+            }
+        }
+    }
+
+    /**
+     * Handle pan move
+     * @param {MouseEvent} e - Mouse event
+     */
+    function handlePanMove(e) {
+        if (!editorState.isPanning) return;
+        
+        e.preventDefault();
+        editorState.panX = e.clientX - editorState.panStartX;
+        editorState.panY = e.clientY - editorState.panStartY;
+        
+        applyViewTransform();
+    }
+
+    /**
+     * Handle pan end
+     * @param {MouseEvent} e - Mouse event
+     */
+    function handlePanEnd(e) {
+        if (editorState.isPanning) {
+            editorState.isPanning = false;
+            
+            const container = document.getElementById('canvas-container');
+            if (container) {
+                container.style.cursor = '';
+            }
+        }
+    }
+
+    /**
+     * Apply the current zoom and pan transform to the viewport
+     */
+    function applyViewTransform() {
+        const viewport = document.getElementById('canvas-viewport');
+        if (!viewport) return;
+        
+        viewport.style.transform = `translate(${editorState.panX}px, ${editorState.panY}px) scale(${editorState.zoom})`;
+        viewport.style.transformOrigin = '0 0';
+        
+        // Update connections after transform
+        updateConnections();
+    }
+
+    /**
+     * Update the zoom level display
+     */
+    function updateZoomDisplay() {
+        const zoomLevel = document.getElementById('zoom-level');
+        if (zoomLevel) {
+            zoomLevel.textContent = Math.round(editorState.zoom * 100) + '%';
+        }
+    }
+
+    /**
+     * Reset view to default (100% zoom, no pan)
+     */
+    function resetView() {
+        editorState.zoom = 1;
+        editorState.panX = 0;
+        editorState.panY = 0;
+        
+        applyViewTransform();
+        updateZoomDisplay();
+        
+        const btn = document.getElementById('zoom-reset');
+        if (btn) {
+            const originalText = btn.textContent;
+            btn.textContent = '✓ Reset!';
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 1000);
+        }
+        
+        console.log('[PlantUML Visual Editor] View reset to default');
+    }
+
+    /**
+     * Fit all nodes into the visible viewport
+     */
+    function fitToView() {
+        if (editorState.nodes.length === 0) {
+            resetView();
+            return;
+        }
+        
+        const container = document.getElementById('canvas-container');
+        const canvas = document.getElementById('plantuml-canvas');
+        if (!container || !canvas) return;
+        
+        // Calculate bounds of all nodes
+        let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+        
+        editorState.nodes.forEach(node => {
+            const left = parseInt(node.element.style.left) || 0;
+            const top = parseInt(node.element.style.top) || 0;
+            const width = node.element.offsetWidth;
+            const height = node.element.offsetHeight;
+            
+            minX = Math.min(minX, left);
+            minY = Math.min(minY, top);
+            maxX = Math.max(maxX, left + width);
+            maxY = Math.max(maxY, top + height);
+        });
+        
+        // Add padding
+        const padding = 40;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+        
+        const contentWidth = maxX - minX;
+        const contentHeight = maxY - minY;
+        
+        const containerRect = container.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        const containerHeight = containerRect.height;
+        
+        // Calculate zoom to fit
+        const zoomX = containerWidth / contentWidth;
+        const zoomY = containerHeight / contentHeight;
+        const newZoom = Math.min(zoomX, zoomY, editorState.maxZoom);
+        
+        // Calculate pan to center
+        const scaledWidth = contentWidth * newZoom;
+        const scaledHeight = contentHeight * newZoom;
+        
+        editorState.zoom = Math.max(editorState.minZoom, newZoom);
+        editorState.panX = (containerWidth - scaledWidth) / 2 - minX * editorState.zoom;
+        editorState.panY = (containerHeight - scaledHeight) / 2 - minY * editorState.zoom;
+        
+        applyViewTransform();
+        updateZoomDisplay();
+        
+        const btn = document.getElementById('zoom-fit');
+        if (btn) {
+            const originalText = btn.textContent;
+            btn.textContent = '✓ Fit!';
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 1000);
+        }
+        
+        console.log('[PlantUML Visual Editor] View fitted to content');
     }
 
     // Export for testing
