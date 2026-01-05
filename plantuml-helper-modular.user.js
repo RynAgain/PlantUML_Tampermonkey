@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         PlantUML Helper - Reference Guide & GUI Aid (Modular)
 // @namespace    http://tampermonkey.net/
-// @version      3.5.2
-// @description  Visual diagram editor with node color picker, undo/redo (Ctrl+Z/Y), connection labels, keyboard shortcuts, pan & zoom, full page mode, toggleable grid, auto-layout, PNG export, arrow direction control, connection editing, and node ordering - now a standalone diagramming tool!
+// @version      3.5.3
+// @description  Visual diagram editor with adjustable grid size, fixed PNG export, working color picker, undo/redo (Ctrl+Z/Y), connection labels, keyboard shortcuts, pan & zoom, full page mode, toggleable grid, auto-layout, arrow direction control, connection editing, and node ordering - now a standalone diagramming tool!
 // @author       RynAgain
 // @match        *://*/*
 // @grant        GM_addStyle
@@ -21,7 +21,7 @@
     'use strict';
 
     console.log('PlantUML Helper (Modular) - Main script started');
-    console.log('Version: 3.5.2 - Node color picker for individual node customization');
+    console.log('Version: 3.5.3 - Fixed PNG export, color picker, and adjustable grid size');
 
     // All modules are loaded via @require directives and self-initialize
     // The loading order is:

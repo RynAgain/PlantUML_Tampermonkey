@@ -90,6 +90,7 @@
                     <button class="plantuml-editor-btn secondary" id="snap-to-grid">📐 Snap</button>
                     <button class="plantuml-editor-btn secondary" id="auto-layout">🔀 Auto Layout</button>
                     <button class="plantuml-editor-btn secondary active" id="toggle-grid">▦ Grid</button>
+                    <button class="plantuml-editor-btn secondary" id="grid-settings" title="Grid Settings">⚙</button>
                     <button class="plantuml-editor-btn secondary" id="full-page-mode">⛶ Full Page</button>
                     <button class="plantuml-editor-btn" id="export-png">📷 Export PNG</button>
                 </div>
@@ -171,6 +172,9 @@
 
         // Toggle grid
         document.getElementById('toggle-grid')?.addEventListener('click', toggleGrid);
+
+        // Grid settings
+        document.getElementById('grid-settings')?.addEventListener('click', showGridSettings);
 
         // Full page mode
         document.getElementById('full-page-mode')?.addEventListener('click', toggleFullPageMode);
@@ -1798,13 +1802,15 @@
         const defaultColor = getDefaultNodeColor(nodeData.type);
         
         if (color === defaultColor) {
-            // Reset to default - remove custom color
-            nodeElement.style.backgroundColor = '';
+            // Reset to default - remove custom color but use !important to override CSS class
+            nodeElement.style.setProperty('background-color', defaultColor, 'important');
+            nodeElement.style.setProperty('border-color', darkenColor(defaultColor, 15), 'important');
             delete nodeElement.dataset.customColor;
             nodeData.customColor = null;
         } else {
-            // Apply custom color
-            nodeElement.style.backgroundColor = color;
+            // Apply custom color with !important to override CSS class styles
+            nodeElement.style.setProperty('background-color', color, 'important');
+            nodeElement.style.setProperty('border-color', darkenColor(color, 15), 'important');
             nodeElement.dataset.customColor = color;
             nodeData.customColor = color;
         }
@@ -2030,6 +2036,167 @@
             }
         } catch (error) {
             console.error('[PlantUML Visual Editor] Error checking for saved diagram:', error);
+        }
+    }
+
+    /**
+     * Show grid settings modal
+     */
+    function showGridSettings() {
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'grid-settings-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: #232F3E;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 350px;
+            width: 90%;
+            color: #FAFAFA;
+        `;
+
+        const title = document.createElement('h3');
+        title.textContent = 'Grid Settings';
+        title.style.cssText = 'margin: 0 0 15px 0; color: #00CAFF;';
+        modal.appendChild(title);
+
+        // Grid size slider
+        const sizeLabel = document.createElement('label');
+        sizeLabel.textContent = `Grid Size: ${editorState.gridSize}px`;
+        sizeLabel.id = 'grid-size-label';
+        sizeLabel.style.cssText = 'display: block; margin-bottom: 8px; color: #DADADA; font-size: 14px;';
+        modal.appendChild(sizeLabel);
+
+        const sizeSlider = document.createElement('input');
+        sizeSlider.type = 'range';
+        sizeSlider.min = '5';
+        sizeSlider.max = '50';
+        sizeSlider.value = editorState.gridSize;
+        sizeSlider.style.cssText = `
+            width: 100%;
+            margin-bottom: 20px;
+            accent-color: #00CAFF;
+        `;
+        sizeSlider.addEventListener('input', (e) => {
+            const newSize = parseInt(e.target.value);
+            sizeLabel.textContent = `Grid Size: ${newSize}px`;
+        });
+        modal.appendChild(sizeSlider);
+
+        // Preset sizes
+        const presetLabel = document.createElement('label');
+        presetLabel.textContent = 'Preset Sizes:';
+        presetLabel.style.cssText = 'display: block; margin-bottom: 8px; color: #DADADA; font-size: 12px;';
+        modal.appendChild(presetLabel);
+
+        const presetContainer = document.createElement('div');
+        presetContainer.style.cssText = 'display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;';
+
+        const presets = [10, 15, 20, 25, 30, 40, 50];
+        presets.forEach(size => {
+            const btn = document.createElement('button');
+            btn.textContent = `${size}px`;
+            btn.style.cssText = `
+                padding: 6px 12px;
+                background: ${size === editorState.gridSize ? '#00CAFF' : '#35485E'};
+                color: ${size === editorState.gridSize ? '#232F3E' : '#FAFAFA'};
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+            `;
+            btn.addEventListener('click', () => {
+                sizeSlider.value = size;
+                sizeLabel.textContent = `Grid Size: ${size}px`;
+                presetContainer.querySelectorAll('button').forEach(b => {
+                    b.style.background = '#35485E';
+                    b.style.color = '#FAFAFA';
+                });
+                btn.style.background = '#00CAFF';
+                btn.style.color = '#232F3E';
+            });
+            presetContainer.appendChild(btn);
+        });
+        modal.appendChild(presetContainer);
+
+        // Button container
+        const btnContainer = document.createElement('div');
+        btnContainer.style.cssText = 'display: flex; gap: 10px;';
+
+        // Apply button
+        const applyBtn = document.createElement('button');
+        applyBtn.textContent = '✓ Apply';
+        applyBtn.style.cssText = `
+            flex: 1;
+            padding: 10px;
+            background: #00CAFF;
+            border: none;
+            border-radius: 4px;
+            color: #232F3E;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        `;
+        applyBtn.addEventListener('click', () => {
+            const newSize = parseInt(sizeSlider.value);
+            editorState.gridSize = newSize;
+            updateGridStyle();
+            savePersistedSettings();
+            overlay.remove();
+            console.log('[PlantUML Visual Editor] Grid size changed to:', newSize);
+        });
+        btnContainer.appendChild(applyBtn);
+
+        // Cancel button
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.style.cssText = `
+            flex: 1;
+            padding: 10px;
+            background: #1E2222;
+            border: 1px solid #35485E;
+            border-radius: 4px;
+            color: #DADADA;
+            font-size: 14px;
+            cursor: pointer;
+        `;
+        cancelBtn.addEventListener('click', () => overlay.remove());
+        btnContainer.appendChild(cancelBtn);
+
+        modal.appendChild(btnContainer);
+        overlay.appendChild(modal);
+        
+        // Close on overlay click
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        document.body.appendChild(overlay);
+    }
+
+    /**
+     * Update the grid style based on current grid size
+     */
+    function updateGridStyle() {
+        const canvas = document.getElementById('plantuml-canvas');
+        if (canvas) {
+            canvas.style.setProperty('--grid-size', editorState.gridSize + 'px');
         }
     }
 
@@ -2446,10 +2613,10 @@
 
     /**
      * Export the diagram canvas as PNG image
+     * Uses node positions (style.left/top) instead of getBoundingClientRect to avoid zoom issues
      */
     function exportToPNG() {
         const canvas = document.getElementById('plantuml-canvas');
-        const svg = document.getElementById('connection-svg');
         
         if (!canvas || editorState.nodes.length === 0) {
             alert('No diagram to export. Add some nodes first!');
@@ -2460,19 +2627,19 @@
         const exportCanvas = document.createElement('canvas');
         const ctx = exportCanvas.getContext('2d');
         
-        // Calculate bounds of all nodes
+        // Calculate bounds of all nodes using their actual positions (not affected by zoom)
         let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
         
         editorState.nodes.forEach(node => {
-            const rect = node.element.getBoundingClientRect();
-            const canvasRect = canvas.getBoundingClientRect();
-            const left = rect.left - canvasRect.left;
-            const top = rect.top - canvasRect.top;
+            const left = parseInt(node.element.style.left) || 0;
+            const top = parseInt(node.element.style.top) || 0;
+            const width = node.element.offsetWidth;
+            const height = node.element.offsetHeight;
             
             minX = Math.min(minX, left);
             minY = Math.min(minY, top);
-            maxX = Math.max(maxX, left + rect.width);
-            maxY = Math.max(maxY, top + rect.height);
+            maxX = Math.max(maxX, left + width);
+            maxY = Math.max(maxY, top + height);
         });
         
         // Add padding
@@ -2493,40 +2660,69 @@
         ctx.fillStyle = '#1e1e1e';
         ctx.fillRect(0, 0, width, height);
         
-        // Draw grid (optional visual aid)
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 0.5;
-        for (let x = 0; x < width; x += editorState.gridSize) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
-        }
-        for (let y = 0; y < height; y += editorState.gridSize) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-            ctx.stroke();
+        // Draw grid (optional visual aid) - only if grid is visible
+        if (editorState.showGrid) {
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 0.5;
+            for (let x = 0; x < width; x += editorState.gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < height; y += editorState.gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
         }
         
-        // Draw connections with edge-to-edge lines
+        // Helper function for edge intersection in export
+        function getEdgeIntersectionForExport(cx, cy, w, h, targetX, targetY) {
+            const dx = targetX - cx;
+            const dy = targetY - cy;
+            
+            if (dx === 0 && dy === 0) return { x: cx, y: cy };
+            
+            const halfW = w / 2;
+            const halfH = h / 2;
+            
+            let t = Infinity;
+            
+            if (dx > 0) t = Math.min(t, halfW / dx);
+            if (dx < 0) t = Math.min(t, -halfW / dx);
+            if (dy > 0) t = Math.min(t, halfH / dy);
+            if (dy < 0) t = Math.min(t, -halfH / dy);
+            
+            return { x: cx + dx * t, y: cy + dy * t };
+        }
+        
+        // Draw connections with edge-to-edge lines using actual node positions
         ctx.strokeStyle = '#00CAFF';
         ctx.lineWidth = 3;
         
         editorState.connections.forEach(conn => {
-            const fromRect = conn.fromElement.getBoundingClientRect();
-            const toRect = conn.toElement.getBoundingClientRect();
-            const canvasRect = canvas.getBoundingClientRect();
+            // Use actual node positions (not affected by zoom)
+            const fromLeft = parseInt(conn.fromElement.style.left) || 0;
+            const fromTop = parseInt(conn.fromElement.style.top) || 0;
+            const fromWidth = conn.fromElement.offsetWidth;
+            const fromHeight = conn.fromElement.offsetHeight;
             
-            // Calculate centers
-            const fromCX = fromRect.left - canvasRect.left + fromRect.width / 2 - minX;
-            const fromCY = fromRect.top - canvasRect.top + fromRect.height / 2 - minY;
-            const toCX = toRect.left - canvasRect.left + toRect.width / 2 - minX;
-            const toCY = toRect.top - canvasRect.top + toRect.height / 2 - minY;
+            const toLeft = parseInt(conn.toElement.style.left) || 0;
+            const toTop = parseInt(conn.toElement.style.top) || 0;
+            const toWidth = conn.toElement.offsetWidth;
+            const toHeight = conn.toElement.offsetHeight;
+            
+            // Calculate centers relative to export bounds
+            const fromCX = fromLeft + fromWidth / 2 - minX;
+            const fromCY = fromTop + fromHeight / 2 - minY;
+            const toCX = toLeft + toWidth / 2 - minX;
+            const toCY = toTop + toHeight / 2 - minY;
             
             // Calculate edge intersection points
-            const fromEdge = getEdgeIntersectionForExport(fromCX, fromCY, fromRect.width, fromRect.height, toCX, toCY);
-            const toEdge = getEdgeIntersectionForExport(toCX, toCY, toRect.width, toRect.height, fromCX, fromCY);
+            const fromEdge = getEdgeIntersectionForExport(fromCX, fromCY, fromWidth, fromHeight, toCX, toCY);
+            const toEdge = getEdgeIntersectionForExport(toCX, toCY, toWidth, toHeight, fromCX, fromCY);
             
             const x1 = fromEdge.x;
             const y1 = fromEdge.y;
@@ -2547,6 +2743,25 @@
             ctx.moveTo(x1, y1);
             ctx.lineTo(x2, y2);
             ctx.stroke();
+            
+            // Draw connection label
+            const label = conn.label || 'Message';
+            if (label) {
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2;
+                
+                // Draw label background
+                ctx.font = '11px "Segoe UI", sans-serif';
+                const textWidth = ctx.measureText(label).width;
+                ctx.fillStyle = '#232F3E';
+                ctx.fillRect(midX - textWidth / 2 - 4, midY - 16, textWidth + 8, 14);
+                
+                // Draw label text
+                ctx.fillStyle = '#FAFAFA';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(label, midX, midY - 9);
+            }
             
             // Draw arrowhead(s)
             const angle = Math.atan2(y2 - y1, x2 - x1);
@@ -2575,29 +2790,9 @@
             }
         });
         
-        // Helper function for edge intersection in export
-        function getEdgeIntersectionForExport(cx, cy, w, h, targetX, targetY) {
-            const dx = targetX - cx;
-            const dy = targetY - cy;
-            
-            if (dx === 0 && dy === 0) return { x: cx, y: cy };
-            
-            const halfW = w / 2;
-            const halfH = h / 2;
-            
-            let t = Infinity;
-            
-            if (dx > 0) t = Math.min(t, halfW / dx);
-            if (dx < 0) t = Math.min(t, -halfW / dx);
-            if (dy > 0) t = Math.min(t, halfH / dy);
-            if (dy < 0) t = Math.min(t, -halfH / dy);
-            
-            return { x: cx + dx * t, y: cy + dy * t };
-        }
-        
         ctx.setLineDash([]);
         
-        // Draw nodes
+        // Draw nodes using actual positions
         const nodeColors = {
             node: { bg: '#4a9eff', border: '#3a8eef' },
             actor: { bg: '#9b59b6', border: '#8e44ad' },
@@ -2607,12 +2802,15 @@
         };
         
         editorState.nodes.forEach(node => {
-            const rect = node.element.getBoundingClientRect();
-            const canvasRect = canvas.getBoundingClientRect();
-            const x = rect.left - canvasRect.left - minX;
-            const y = rect.top - canvasRect.top - minY;
-            const w = rect.width;
-            const h = rect.height;
+            // Use actual node positions (not affected by zoom)
+            const left = parseInt(node.element.style.left) || 0;
+            const top = parseInt(node.element.style.top) || 0;
+            const w = node.element.offsetWidth;
+            const h = node.element.offsetHeight;
+            
+            // Position relative to export bounds
+            const x = left - minX;
+            const y = top - minY;
             
             // Use custom color if set, otherwise use default type color
             const defaultColors = nodeColors[node.type] || nodeColors.node;
@@ -2648,7 +2846,7 @@
             // Draw label
             const label = node.element.querySelector('.plantuml-node-label').textContent;
             ctx.fillStyle = '#ffffff';
-            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(label, x + w / 2, y + h / 2);
@@ -2962,6 +3160,12 @@
                     }
                 }
                 
+                // Apply grid size
+                if (settings.gridSize !== undefined && settings.gridSize >= 5 && settings.gridSize <= 50) {
+                    editorState.gridSize = settings.gridSize;
+                    updateGridStyle();
+                }
+                
                 console.log('[PlantUML Visual Editor] Settings loaded:', settings);
             }
         } catch (error) {
@@ -2976,7 +3180,8 @@
         try {
             const settings = {
                 isFullPage: editorState.isFullPage,
-                showGrid: editorState.showGrid
+                showGrid: editorState.showGrid,
+                gridSize: editorState.gridSize
             };
 
             if (typeof GM_setValue !== 'undefined') {

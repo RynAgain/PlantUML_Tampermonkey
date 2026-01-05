@@ -342,13 +342,14 @@
                 min-height: 250px;
                 position: relative;
                 z-index: 1;
+                --grid-size: 20px;
             }
 
             .plantuml-canvas.show-grid {
                 background-image:
                     linear-gradient(to right, rgba(53, 72, 94, 0.3) 1px, transparent 1px),
                     linear-gradient(to bottom, rgba(53, 72, 94, 0.3) 1px, transparent 1px);
-                background-size: 20px 20px;
+                background-size: var(--grid-size) var(--grid-size);
                 background-position: 0 0;
                 background-repeat: repeat;
             }
